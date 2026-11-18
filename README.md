@@ -4,6 +4,27 @@ A modular, Perl-based API service for IPFire, providing secure remote management
 
 > **Development status:** Early development. The API is not yet functional.
 
+## Table of Contents
+
+- [Project Goals](#project-goals)
+- [Planned Architecture](#planned-architecture)
+  - [Module Responsibilities](#module-responsibilities)
+- [IPFire Compatibility](#ipfire-compatibility)
+  - [Test the TLS listener on IPFire](#test-the-tls-listener-on-ipfire)
+  - [Send a JSON request](#send-a-json-request)
+  - [Test the API on IPFire](#test-the-api-on-ipfire)
+- [Development Roadmap](#development-roadmap)
+  - [Phase 1 — Project Foundation](#phase-1--project-foundation)
+  - [Phase 2 — TLS Server](#phase-2--tls-server)
+  - [Phase 3 — WebSocket Protocol](#phase-3--websocket-protocol)
+  - [Phase 4 — JSON API Protocol](#phase-4--json-api-protocol)
+  - [Phase 5 — Authentication and Security](#phase-5--authentication-and-security)
+  - [Phase 6 — Monitoring and Events](#phase-6--monitoring-and-events)
+  - [Phase 7 — IPFire Integration](#phase-7--ipfire-integration)
+  - [Phase 8 — Future Compatibility](#phase-8--future-compatibility)
+- [Development Notes](#development-notes)
+- [License](#license)
+
 ## Project Goals
 
 The goal is to develop a modular API for IPFire that supports persistent, bidirectional communication between IPFire and external clients.
@@ -39,6 +60,7 @@ IPFire-API-v2/
 │           ├── Config.pm
 │           ├── Protocol.pm
 │           ├── Server.pm
+│           ├── System.pm
 │           └── WebSocket.pm
 ├── t/
 ├── .gitignore
@@ -55,6 +77,7 @@ IPFire-API-v2/
 | `Client.pm` | Individual client connections and connection state |
 | `WebSocket.pm` | WebSocket handshake, frame processing and protocol control |
 | `Protocol.pm` | JSON message handling, request dispatching and responses |
+| `System.pm` | Read-only system information |
 | `ipfire-api-daemon.pl` | Main entry point for the API service |
 
 ## IPFire Compatibility
@@ -80,6 +103,93 @@ JSON support is already used in the existing API v1 implementation.
 
 The initial assessment suggests that a WebSocket server can be implemented without additional Perl packages. This still requires practical verification.
 
+### Test the TLS listener on IPFire
+
+From the repository checkout on IPFire, run:
+
+```sh
+perl bin/ipfire-api-daemon.pl
+```
+
+From a second shell on the same IPFire host, connect to the listener:
+
+```sh
+openssl s_client -connect 127.0.0.1:8444 \
+  -CAfile /etc/httpd/server.crt -verify_return_error </dev/null
+```
+
+The daemon allows up to five seconds for the TLS handshake and another five seconds for the WebSocket upgrade.
+Stop it with `Ctrl+C`.
+If the server certificate was issued by a CA, use that CA's certificate for `-CAfile`.
+
+To check the handshake timeout, open a TCP connection without starting TLS from the second shell on IPFire:
+
+```sh
+time timeout 8 bash -c 'exec 3<>/dev/tcp/127.0.0.1/8444; cat <&3'
+```
+
+Expect the connection to close after about five seconds and the daemon to log `TLS handshake failed: timed out`.
+Run the [API smoke test](#test-the-api-on-ipfire) immediately afterward to confirm that the daemon serves another client.
+
+To test the WebSocket upgrade from the second shell, run:
+
+```sh
+key=$(openssl rand -base64 16)
+printf 'GET / HTTP/1.1\r\nHost: 127.0.0.1:8444\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: %s\r\n\r\n' "$key" |
+  openssl s_client -quiet -connect 127.0.0.1:8444 \
+    -CAfile /etc/httpd/server.crt -verify_return_error
+```
+
+Expect `HTTP/1.1 101 Switching Protocols` and a `Sec-WebSocket-Accept` header.
+The daemon keeps the connection open after the upgrade and waits up to 30 seconds for each frame.
+It allows up to five seconds to send each reply frame. A timed-out connection is closed so the daemon can accept the next client.
+It currently handles one client at a time. The message limit is 64 KiB, including fragmented messages.
+Ping receives Pong, and Close ends the connection.
+
+### Send a JSON request
+
+Send one JSON object per WebSocket text message. Each request has an `id` string of 1 to 128 characters
+and a `method` string. The first method, `system.ping`, accepts no parameters. The `params` field can
+be omitted or set to an empty object.
+
+```json
+{"id":"ping-1","method":"system.ping"}
+```
+
+The reply carries the same ID and a `result` or `error` object. For example:
+
+```json
+{"id":"ping-1","result":{"pong":true}}
+```
+
+Errors contain `code` and `message`. The reply ID is `null` when the request has no valid ID.
+The current error codes are `invalid_json`, `invalid_request`, `method_not_found` and `invalid_params`.
+
+Use `{"id":"info-1","method":"system.info"}` for the hostname, the IPFire release string and whole
+seconds since boot. The result fields are `hostname`, `ipfire_release` and `uptime_seconds`.
+Release and uptime are `null` if their sources are unavailable. This method also accepts no parameters.
+
+### Test the API on IPFire
+
+Start the updated daemon in the first SSH session. From the local repository checkout, run:
+
+```sh
+ssh root@ipfire.mainz 'perl - ipfire.mainz' < t/ipfire-smoke.pl
+```
+
+Replace both instances of `ipfire.mainz` with the name on your IPFire certificate.
+Expect `Upgrade OK`, `Pong OK`, `system.ping OK`, the system information in JSON,
+`system.info OK` and `Close OK`.
+
+Run the local frame tests from the repository with `prove -l t/websocket-frames.t`.
+
+| Environment variable | Default |
+|---|---|
+| `IPFIRE_API_HOST` | `127.0.0.1` |
+| `IPFIRE_API_PORT` | `8444` |
+| `IPFIRE_API_CERT_FILE` | `/etc/httpd/server.crt` |
+| `IPFIRE_API_KEY_FILE` | `/etc/httpd/server.key` |
+
 ## Development Roadmap
 
 ### Phase 1 — Project Foundation
@@ -91,42 +201,47 @@ The initial assessment suggests that a WebSocket server can be implemented witho
 - [x] Check Perl and TLS dependencies on IPFire Core 205.
 - [x] Create the initial `Config.pm` module.
 - [x] Create the initial `Server.pm` skeleton.
-- [ ] Implement `ipfire-api-daemon.pl`.
-- [ ] Verify Perl syntax and module loading.
-- [ ] Confirm usable TLS certificate and private key paths.
-- [ ] Implement configurable listening address and port.
+- [x] Implement `ipfire-api-daemon.pl`.
+- [x] Verify Perl syntax and module loading.
+- [x] Confirm usable TLS certificate and private key paths.
+- [x] Implement configurable listening address and port.
 
 ### Phase 2 — TLS Server
 
-- [ ] Implement the TLS listener.
-- [ ] Accept incoming client connections.
-- [ ] Implement connection timeouts and error handling.
+- [x] Implement the TLS listener.
+- [x] Accept incoming client connections.
+- [x] Implement connection timeouts and error handling.
+- [x] Verify TLS handshake timeout and successful handling of the next client on IPFire Core Update 205.
 - [ ] Evaluate non-blocking TLS operations with `IO::Select`.
 - [ ] Support multiple simultaneous clients.
 - [ ] Implement clean startup and shutdown.
-- [ ] Test TLS connections on IPFire.
+- [x] Verify a TLS 1.3 handshake on IPFire over loopback.
 
 ### Phase 3 — WebSocket Protocol
 
-- [ ] Implement the HTTP WebSocket upgrade handshake.
-- [ ] Validate the `Sec-WebSocket-Key` header.
-- [ ] Generate the `Sec-WebSocket-Accept` response.
-- [ ] Implement WebSocket frame parsing and encoding.
-- [ ] Support client masking and fragmented messages.
-- [ ] Implement Ping/Pong frames.
-- [ ] Implement Close frames and connection cleanup.
-- [ ] Enforce message size limits and protocol validation.
-- [ ] Test WebSocket connections using a standard client.
+- [x] Implement the HTTP WebSocket upgrade handshake.
+- [x] Validate the `Sec-WebSocket-Key` header.
+- [x] Generate the `Sec-WebSocket-Accept` response.
+- [x] Verify the HTTP upgrade over TLS on IPFire.
+- [x] Parse client frames and encode server control frames.
+- [x] Support client masking and fragmented messages.
+- [x] Implement Ping/Pong frames.
+- [x] Implement Close frames and connection cleanup.
+- [x] Enforce message size limits and protocol validation.
+- [x] Verify Ping/Pong and Close over TLS on IPFire.
+- [x] Verify the WebSocket connection and both JSON methods with `wscat` on Debian 13 over local TLS.
 
 ### Phase 4 — JSON API Protocol
 
-- [ ] Define a consistent JSON message format.
-- [ ] Implement request and response identifiers.
-- [ ] Implement structured error responses.
-- [ ] Add a basic `system.ping` request.
-- [ ] Add an initial read-only system information request.
-- [ ] Implement request dispatching.
-- [ ] Add automated protocol tests.
+- [x] Define a consistent JSON message format.
+- [x] Implement request and response identifiers.
+- [x] Implement structured error responses.
+- [x] Add a basic `system.ping` request.
+- [x] Verify `system.ping` and its response ID over TLS on IPFire.
+- [x] Add an initial read-only `system.info` request.
+- [x] Verify `system.info` over TLS on IPFire Core Update 205.
+- [x] Dispatch requests by method name.
+- [x] Add automated protocol tests.
 
 ### Phase 5 — Authentication and Security
 

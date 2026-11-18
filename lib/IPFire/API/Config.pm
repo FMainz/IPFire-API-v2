@@ -10,10 +10,10 @@ our @EXPORT_OK = qw(get_config);
 
 sub get_config {
     return {
-        host      => '0.0.0.0',
-        port      => 8444,
-        cert_file => '/etc/ssl/certs/ipfire-api.pem',
-        key_file  => '/etc/ssl/private/ipfire-api.key',
+        host      => $ENV{IPFIRE_API_HOST}      || '127.0.0.1',
+        port      => $ENV{IPFIRE_API_PORT}      // 8444,
+        cert_file => $ENV{IPFIRE_API_CERT_FILE} // '/etc/httpd/server.crt',
+        key_file  => $ENV{IPFIRE_API_KEY_FILE}  // '/etc/httpd/server.key',
     };
 }
 
