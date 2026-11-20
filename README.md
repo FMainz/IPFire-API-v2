@@ -142,8 +142,9 @@ printf 'GET / HTTP/1.1\r\nHost: 127.0.0.1:8444\r\nUpgrade: websocket\r\nConnecti
 
 Expect `HTTP/1.1 101 Switching Protocols` and a `Sec-WebSocket-Accept` header.
 The daemon keeps the connection open after the upgrade and waits up to 30 seconds for each frame.
-It allows up to five seconds to send each reply frame. A timed-out connection is closed so the daemon can accept the next client.
-It currently handles one client at a time. The message limit is 64 KiB, including fragmented messages.
+It allows up to five seconds to send each reply frame and closes connections that time out.
+The daemon supports up to 32 simultaneous connections, including clients still negotiating TLS or upgrading to WebSocket.
+The message limit is 64 KiB, including fragmented messages.
 Ping receives Pong, and Close ends the connection.
 
 ### Send a JSON request
@@ -181,7 +182,9 @@ Replace both instances of `ipfire.mainz` with the name on your IPFire certificat
 Expect `Upgrade OK`, `Pong OK`, `system.ping OK`, the system information in JSON,
 `system.info OK` and `Close OK`.
 
-Run the local frame tests from the repository with `prove -l t/websocket-frames.t`.
+Run the local tests from the repository with `prove -l t`. The concurrency test uses loopback
+and an ephemeral certificate generated with OpenSSL. It checks that an unfinished TLS handshake
+and a partial WebSocket frame leave other clients able to get a response.
 
 | Environment variable | Default |
 |---|---|
@@ -212,8 +215,9 @@ Run the local frame tests from the repository with `prove -l t/websocket-frames.
 - [x] Accept incoming client connections.
 - [x] Implement connection timeouts and error handling.
 - [x] Verify TLS handshake timeout and successful handling of the next client on IPFire Core Update 205.
-- [ ] Evaluate non-blocking TLS operations with `IO::Select`.
-- [ ] Support multiple simultaneous clients.
+- [x] Use non-blocking TLS operations with `IO::Select`.
+- [x] Support multiple simultaneous clients and verify them over TLS on Linux loopback.
+- [ ] Verify multiple simultaneous clients on IPFire.
 - [ ] Implement clean startup and shutdown.
 - [x] Verify a TLS 1.3 handshake on IPFire over loopback.
 

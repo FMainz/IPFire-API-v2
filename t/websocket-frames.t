@@ -1,16 +1,10 @@
 use strict;
 use warnings;
 
-use Errno qw(EINTR);
-use IO::Handle;
-use IO::Select;
-use IO::Socket::SSL qw(SSL_WANT_READ);
 use JSON::PP qw(decode_json);
-use Socket qw(AF_UNIX SOCK_STREAM PF_UNSPEC);
 use Test::More;
-use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 
-use IPFire::API::WebSocket qw(handle_upgrade handle_frames);
+use IPFire::API::WebSocket qw(consume_upgrade consume_frame);
 use IPFire::API::Protocol qw(handle_request);
 
 sub client_frame {
@@ -26,14 +20,21 @@ sub client_frame {
 
 sub exchange {
     my ($input, $upgrade, $on_text) = @_;
-    socketpair(my $server, my $client, AF_UNIX, SOCK_STREAM, PF_UNSPEC) or die "socketpair: $!";
-    $client->print($input) or die "write to client socket: $!";
-    $client->flush() or die "flush client socket: $!";
-    my $buffer = $upgrade ? handle_upgrade($server) : '';
-    handle_frames($server, $buffer, $on_text) if defined $buffer;
-    close $server or die "close server socket: $!";
-    local $/;
-    return $client->getline() // '';
+    my $reply = '';
+    if ($upgrade) {
+        my ($response, $close) = consume_upgrade(\$input);
+        $reply = $response // '';
+        return $reply if !defined($response) || $close;
+    }
+
+    my %state;
+    while (1) {
+        my ($frame, $close) = consume_frame(\$input, \%state, $on_text);
+        last unless defined $frame;
+        $reply .= $frame;
+        last if $close;
+    }
+    return $reply;
 }
 
 my $close = client_frame(0x88, pack('n', 1000));
@@ -94,28 +95,21 @@ subtest 'JSON responses travel in text frames on the same connection' => sub {
     is $output, $normal_close, 'connection closes normally after all requests';
 };
 
-subtest 'interrupted readiness wait resumes before the original deadline' => sub {
-    pipe(my $read, my $write) or die "pipe: $!";
-    syswrite($write, 'x') == 1 or die "write to pipe: $!";
-    my $select = IO::Select->new($read);
-    my $can_read = IO::Select->can('can_read');
-    my $calls = 0;
-
-    no warnings 'redefine';
-    local *IO::Select::can_read = sub {
-        if (++$calls == 1) {
-            $! = EINTR;
-            return;
-        }
-        return $can_read->(@_);
-    };
-    local $IPFire::API::WebSocket::SSL_ERROR = SSL_WANT_READ;
-    ok IPFire::API::WebSocket::_wait_for_ssl($select, clock_gettime(CLOCK_MONOTONIC) + 1),
-        'the wait reports the readable handle after an interruption';
-    is $calls, 2, 'the interrupted wait is retried';
-    ok !IPFire::API::WebSocket::_wait_for_ssl($select, clock_gettime(CLOCK_MONOTONIC) - 1),
-        'an expired deadline does not wait for a ready handle';
-    is $calls, 2, 'the expired wait does not call select';
+subtest 'partial input is retained until its frame is complete' => sub {
+    my $frame = client_frame(0x82, 'x' x 65536);
+    my %state;
+    my $input = '';
+    for my $chunk (substr($frame, 0, 1), substr($frame, 1, 8), substr($frame, 9, 4)) {
+        $input .= $chunk;
+        my $partial = $input;
+        my @result = consume_frame(\$input, \%state);
+        is_deeply \@result, [], 'incomplete frame needs more input';
+        is $input, $partial, 'partial bytes are kept';
+    }
+    $input .= substr($frame, 13) . $close;
+    is_deeply [consume_frame(\$input, \%state)], ['', 0], 'complete binary frame is consumed';
+    is $input, $close, 'following frame remains buffered';
+    is_deeply [consume_frame(\$input, \%state)], [$normal_close, 1], 'buffered Close can be handled immediately';
 };
 
 done_testing;
