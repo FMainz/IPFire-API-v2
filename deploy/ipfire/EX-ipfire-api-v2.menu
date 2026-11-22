@@ -1,0 +1,7 @@
+$subservices->{'90.ipfire-api-v2'} = {
+    'caption' => 'IPFire API v2',
+    'uri' => '/cgi-bin/api.cgi',
+    'vars' => 'view=admin',
+    'title' => 'IPFire API v2',
+    'enabled' => 1,
+};

@@ -8,26 +8,26 @@ use Encode qw(decode FB_CROAK LEAVE_SRC);
 use Exporter 'import';
 use MIME::Base64 qw(decode_base64 encode_base64);
 
-our @EXPORT_OK = qw(consume_upgrade consume_frame upgrade_response);
+our @EXPORT_OK = qw(consume_upgrade consume_frame upgrade_response text_frame);
 
 use constant MAX_HEADER_BYTES => 8192;
 use constant MAX_MESSAGE_BYTES => 65536;
 use constant WEBSOCKET_GUID => '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
 sub consume_upgrade {
-    my ($buffer) = @_;
+    my ($buffer, $authenticate) = @_;
 
     my $header_end = index($$buffer, "\r\n\r\n");
     return if $header_end < 0 && length($$buffer) < MAX_HEADER_BYTES;
 
-    my $response = upgrade_response($$buffer);
+    my $response = upgrade_response($$buffer, $authenticate);
     return ($response, 1) unless $response =~ /\AHTTP\/1\.1 101 /;
     substr($$buffer, 0, $header_end + 4, '');
     return ($response, 0);
 }
 
 sub upgrade_response {
-    my ($request) = @_;
+    my ($request, $authenticate) = @_;
 
     my $header_end = index($request, "\r\n\r\n");
     return _http_error('431 Request Header Fields Too Large')
@@ -68,6 +68,12 @@ sub upgrade_response {
     return $bad_request unless $key =~ /\A[A-Za-z0-9+\/]{22}==\z/;
     my $decoded_key = decode_base64($key);
     return $bad_request unless length($decoded_key) == 16 && encode_base64($decoded_key, '') eq $key;
+
+    if ($authenticate) {
+        my $authorization = $headers{authorization} // [];
+        return _http_error('401 Unauthorized', "WWW-Authenticate: Bearer realm=\"IPFire API v2\"\r\n")
+            unless @$authorization == 1 && $authenticate->($authorization->[0]);
+    }
 
     my $accept = encode_base64(sha1($key . WEBSOCKET_GUID), '');
     return "HTTP/1.1 101 Switching Protocols\r\n"
@@ -117,8 +123,10 @@ sub consume_frame {
     my $message = delete $state->{message};
     return ('', 0) unless $type == 1;
     return (_encode_frame(8, pack('n', 1007)), 1) unless _valid_utf8($message);
-    return ($on_text ? _encode_frame(1, $on_text->($message)) : '', 0);
+    return ($on_text ? text_frame($on_text->($message)) : '', 0);
 }
+
+sub text_frame { return _encode_frame(1, $_[0]); }
 
 sub _read_frame {
     my ($buffer) = @_;

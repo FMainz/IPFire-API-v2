@@ -1,0 +1,150 @@
+#!/bin/bash
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+project=/root/IPFire-API-v2
+runtime=/run/ipfire-api-v2
+perl=/usr/bin/perl
+no_autostart=/etc/sysconfig/ipfire-api-v2.no-autostart
+
+case "${1-}" in
+    start|stop|restart|status|daemon-start|daemon-stop|daemon-state|daemon-enable|daemon-disable) ;;
+    *) printf 'Usage: %s {start|stop|restart|status|daemon-start|daemon-stop|daemon-state|daemon-enable|daemon-disable}\n' "$0" >&2; exit 2 ;;
+esac
+
+if (( EUID != 0 )); then
+    printf '%s must run as root\n' "$0" >&2
+    exit 1
+fi
+
+umask 077
+mkdir -p -- "$runtime" || exit 1
+exec 9>"$runtime/service.lock" || exit 1
+flock -x -w 2 9 || exit 1
+
+process_start_time() {
+    local stat
+    local -a fields
+    IFS= read -r stat < "/proc/$1/stat" || return 1
+    read -r -a fields <<< "${stat##*) }"
+    [[ ${fields[0]} != Z && -n ${fields[19]} ]] || return 1
+    printf '%s\n' "${fields[19]}"
+}
+
+running() {
+    local name=$1
+    local started executable script
+
+    read -r pid started < "$runtime/$name.pid" || return 1
+    [[ $pid =~ ^[1-9][0-9]*$ && $started =~ ^[0-9]+$ ]] || return 1
+    [[ $(process_start_time "$pid" 2>/dev/null) == "$started" ]] || return 1
+    {
+        IFS= read -r -d '' executable && IFS= read -r -d '' script
+    } < "/proc/$pid/cmdline" || return 1
+    [[ $executable == "$perl" && $script == "$project/bin/ipfire-api-$name.pl" ]]
+}
+
+start_process() {
+    local name=$1
+    shift
+    local pid started script=$project/bin/ipfire-api-$name.pl
+
+    if running "$name" 2>/dev/null; then
+        printf '%s already running (PID %s)\n' "$name" "$pid"
+        return 0
+    fi
+
+    (
+        trap '' HUP
+        exec </dev/null >/dev/null 2>&1
+        exec env -i PATH="$PATH" "$perl" "$script" "$@" \
+            > >(logger -t "ipfire-api-$name" || cat >/dev/null) 2>&1
+    ) 9>&- &
+    pid=$!
+    started=$(process_start_time "$pid" 2>/dev/null)
+    if [[ -n $started ]] && printf '%s %s\n' "$pid" "$started" > "$runtime/$name.pid"; then
+        sleep 1
+        if running "$name" 2>/dev/null; then
+            printf '%s started (PID %s)\n' "$name" "$pid"
+            return 0
+        fi
+    else
+        kill -TERM "$pid" 2>/dev/null
+    fi
+    rm -f -- "$runtime/$name.pid"
+    printf '%s failed to start. See syslog for ipfire-api-%s.\n' "$name" "$name" >&2
+    return 1
+}
+
+stop_process() {
+    local name=$1
+    local pid attempt
+    if running "$name" 2>/dev/null; then
+        kill -TERM "$pid" 2>/dev/null
+        for ((attempt = 0; attempt < 50; attempt++)); do
+            running "$name" 2>/dev/null || break
+            sleep 0.1
+        done
+        if running "$name" 2>/dev/null; then
+            printf '%s did not stop (PID %s)\n' "$name" "$pid" >&2
+            return 1
+        fi
+        printf '%s stopped\n' "$name"
+    fi
+    rm -f -- "$runtime/$name.pid"
+}
+
+start_services() {
+    local web_user result=0
+    web_user=$(awk '$1 == "User" { print $2; exit }' /etc/httpd/conf/uid.conf)
+    if [[ -n $web_user ]]; then
+        start_process admin "$web_user" || result=1
+    else
+        printf 'Cannot determine the Apache user from /etc/httpd/conf/uid.conf\n' >&2
+        result=1
+    fi
+    if [[ ! -e $no_autostart ]]; then
+        start_process daemon || result=1
+    fi
+    return "$result"
+}
+
+stop_services() {
+    local result=0
+    stop_process daemon || result=1
+    stop_process admin || result=1
+    return "$result"
+}
+
+status_services() {
+    local name pid result=0
+    for name in admin daemon; do
+        if running "$name" 2>/dev/null; then
+            printf '%s running (PID %s)\n' "$name" "$pid"
+        else
+            printf '%s stopped\n' "$name"
+            if [[ $name == admin || ! -e $no_autostart ]]; then
+                result=3
+            fi
+        fi
+    done
+    return "$result"
+}
+
+daemon_state() {
+    local pid state=stopped boot=enabled
+    running daemon 2>/dev/null && state=running
+    [[ -e $no_autostart ]] && boot=disabled
+    printf '%s %s\n' "$state" "$boot"
+}
+
+case "$1" in
+    start) start_services ;;
+    stop) stop_services ;;
+    restart) stop_services && start_services ;;
+    status) status_services ;;
+    daemon-start) start_process daemon ;;
+    daemon-stop) stop_process daemon ;;
+    daemon-state) daemon_state ;;
+    daemon-enable) rm -f -- "$no_autostart" ;;
+    daemon-disable) touch -- "$no_autostart" ;;
+esac

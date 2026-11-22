@@ -6,19 +6,26 @@ use JSON::PP qw(decode_json encode_json);
 use MIME::Base64 qw(encode_base64);
 
 alarm 10;
-my $host = shift or die "Usage: perl - <certificate hostname>\n";
+die "Usage: perl t/ipfire-smoke.pl <certificate hostname> [connect address] [CA file] (token on stdin)\n"
+    unless @ARGV >= 1 && @ARGV <= 3;
+my ($host, $address, $ca_file) = @ARGV;
+my $token = <STDIN> // '';
+chomp $token;
+die "Expected a client token on stdin\n" unless $token =~ /\A[a-z0-9][a-z0-9_-]{0,63}\.[0-9a-f]{64}\z/;
 my $tls = IO::Socket::SSL->new(
-    PeerHost => '127.0.0.1', PeerPort => 8444,
+    PeerHost => $address // '127.0.0.1', PeerPort => 8444,
     SSL_hostname => $host, SSL_verifycn_name => $host, SSL_verifycn_scheme => 'http',
-    SSL_verify_mode => SSL_VERIFY_PEER, SSL_ca_file => '/etc/httpd/server.crt',
+    SSL_verify_mode => SSL_VERIFY_PEER, SSL_ca_file => $ca_file // '/etc/httpd/server.crt',
 ) or die IO::Socket::SSL::errstr() . "\n";
 $tls->autoflush(1);
+print $tls->get_sslversion(), " verified for $host\n";
 
 open my $random, '<:raw', '/dev/urandom' or die "$!\n";
 read($random, my $bytes, 32) == 32 or die "Could not read random bytes\n";
 my $key = encode_base64(substr($bytes, 0, 16), '');
 print {$tls} "GET / HTTP/1.1\r\nHost: $host:8444\r\nUpgrade: websocket\r\n"
-    . "Connection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: $key\r\n\r\n"
+    . "Connection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: $key\r\n"
+    . "Authorization: Bearer $token\r\n\r\n"
     or die "Could not send upgrade\n";
 my $headers = do { local $/ = "\r\n\r\n"; <$tls> } // '';
 my $accept = encode_base64(sha1($key . '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'), '');

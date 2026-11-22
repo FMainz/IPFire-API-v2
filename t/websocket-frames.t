@@ -4,7 +4,7 @@ use warnings;
 use JSON::PP qw(decode_json);
 use Test::More;
 
-use IPFire::API::WebSocket qw(consume_upgrade consume_frame);
+use IPFire::API::WebSocket qw(consume_upgrade consume_frame upgrade_response);
 use IPFire::API::Protocol qw(handle_request);
 
 sub client_frame {
@@ -64,6 +64,18 @@ my $reply = exchange($request . client_frame(0x89, 'hi') . $close, 1);
 like $reply, qr/\AHTTP\/1\.1 101 .*?\r\n\r\n\x8a\x02hi\Q$normal_close\E\z/s,
     'the upgrade response precedes frames and preserves bytes already read';
 
+subtest 'malformed upgrades are rejected before authentication' => sub {
+    my $authorize = sub { fail('malformed upgrade must not reach authentication'); return 1 };
+    for my $header ('Host: duplicate', 'Content-Length: 1', 'Transfer-Encoding: chunked') {
+        my $invalid = $request;
+        $invalid =~ s/\r\n\r\n\z/\r\n$header\r\n\r\n/;
+        like upgrade_response($invalid, $authorize), qr/\AHTTP\/1\.1 400 /, "$header rejected";
+    }
+    my $oversized = $request;
+    $oversized =~ s/\r\n\r\n\z/"\r\nX-Fill: " . ('x' x 8192) . "\r\n\r\n"/e;
+    like upgrade_response($oversized, $authorize), qr/\AHTTP\/1\.1 431 /, 'oversized headers rejected';
+};
+
 subtest 'JSON responses travel in text frames on the same connection' => sub {
     my $id = 'a' x 128;
     my @requests = (
@@ -74,7 +86,7 @@ subtest 'JSON responses travel in text frames on the same connection' => sub {
         ['{"id":"' . $id . '","method":"system.ping"}', $id, undef],
     );
     my $input = join '', (map { client_frame(0x81, $_->[0]) } @requests), $close;
-    my $output = exchange($input, 0, \&handle_request);
+    my $output = exchange($input, 0, sub { handle_request($_[0], 'monitoring') });
 
     for my $case (@requests) {
         my (undef, $expected_id, $expected_error) = @$case;
@@ -93,6 +105,28 @@ subtest 'JSON responses travel in text frames on the same connection' => sub {
         }
     }
     is $output, $normal_close, 'connection closes normally after all requests';
+};
+
+subtest 'method failure allows another request on the same connection' => sub {
+    no warnings 'once', 'redefine';
+    local *IPFire::API::System::hostname = sub { die "private exception detail\n" };
+    my @warnings;
+    local $SIG{__WARN__} = sub { push @warnings, @_ };
+
+    my $input = client_frame(0x81, '{"id":"failed","method":"system.info"}')
+        . client_frame(0x81, '{"id":"next","method":"system.ping"}') . $close;
+    my $output = exchange($input, 0, sub { handle_request($_[0], 'monitoring') });
+
+    for my $expected (
+        { id => 'failed', error => { code => 'internal_error', message => 'Internal server error' } },
+        { id => 'next', result => { pong => JSON::PP::true } },
+    ) {
+        my ($header, $length) = unpack('CC', substr($output, 0, 2, ''));
+        is $header, 0x81, 'reply is a text frame';
+        is_deeply decode_json(substr($output, 0, $length, '')), $expected, "reply for $expected->{id}";
+    }
+    is $output, $normal_close, 'connection closes normally';
+    is_deeply \@warnings, ["API method system.info failed\n"], 'log identifies the method without exception details';
 };
 
 subtest 'partial input is retained until its frame is complete' => sub {
