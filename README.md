@@ -1,61 +1,61 @@
 # IPFire-API-v2
 ![IPFire API v2](docs/images/ipfire-api-logo-v2.svg)
-A modular, Perl-based API service for IPFire that enables secure remote management and monitoring via WebSocket over TLS.
-This version was created using ChatGPT. It is based on my IPFire API.
+Ein modularer, Perl-basierter API-Dienst für IPFire, der sichere Fernverwaltung und Monitoring über WebSocket mit TLS ermöglicht.
+Diese Version wurde mit ChatGPT erstellt. Sie basiert auf meiner IPFire API.
 
-> **Development status:** Early development. The API is not yet functional.
+> **Entwicklungsstand:** Frühe Entwicklungsphase. Die API ist noch nicht funktionsfähig.
 
-## Table of Contents
+## Inhaltsverzeichnis
 
-- [Project Goals](#project-goals)
-- [Planned Architecture](#planned-architecture)
-  - [Module Responsibilities](#module-responsibilities)
-- [IPFire Compatibility](#ipfire-compatibility)
-  - [Manage client access on IPFire](#manage-client-access-on-ipfire)
-  - [Connection and request limits](#connection-and-request-limits)
-  - [Configure allowed client networks](#configure-allowed-client-networks)
-  - [Use the API management page](#use-the-api-management-page)
-  - [Start both services automatically on IPFire](#start-both-services-automatically-on-ipfire)
-  - [Test the TLS listener on IPFire](#test-the-tls-listener-on-ipfire)
-  - [Send a JSON request](#send-a-json-request)
-  - [Subscribe to monitoring events](#subscribe-to-monitoring-events)
-  - [Run the Java event client](#run-the-java-event-client)
-  - [Test the API on IPFire](#test-the-api-on-ipfire)
-- [Development Roadmap](#development-roadmap)
-  - [Phase 1 — Project Foundation](#phase-1--project-foundation)
-  - [Phase 2 — TLS Server](#phase-2--tls-server)
-  - [Phase 3 — WebSocket Protocol](#phase-3--websocket-protocol)
-  - [Phase 4 — JSON API Protocol](#phase-4--json-api-protocol)
-  - [Phase 5 — Authentication and Security](#phase-5--authentication-and-security)
-  - [Phase 6 — Monitoring and Events](#phase-6--monitoring-and-events)
-  - [Phase 7 — IPFire Integration](#phase-7--ipfire-integration)
-  - [Phase 8 — Future Compatibility](#phase-8--future-compatibility)
-- [Development Notes](#development-notes)
-- [License](#license)
+- [Projektziele](#projektziele)
+- [Geplante Architektur](#geplante-architektur)
+  - [Aufgaben der Module](#aufgaben-der-module)
+- [IPFire-Kompatibilität](#ipfire-kompatibilität)
+  - [Client-Zugriff auf IPFire verwalten](#client-zugriff-auf-ipfire-verwalten)
+  - [Verbindungs- und Anfragelimits](#verbindungs--und-anfragelimits)
+  - [Erlaubte Client-Netze konfigurieren](#erlaubte-client-netze-konfigurieren)
+  - [API-Verwaltungsseite verwenden](#api-verwaltungsseite-verwenden)
+  - [Beide Dienste auf IPFire automatisch starten](#beide-dienste-auf-ipfire-automatisch-starten)
+  - [TLS-Listener auf IPFire testen](#tls-listener-auf-ipfire-testen)
+  - [JSON-Anfrage senden](#json-anfrage-senden)
+  - [Monitoring-Ereignisse abonnieren](#monitoring-ereignisse-abonnieren)
+  - [Java-Ereignisclient starten](#java-ereignisclient-starten)
+  - [API auf IPFire testen](#api-auf-ipfire-testen)
+- [Entwicklungsplan](#entwicklungsplan)
+  - [Phase 1 – Projektgrundlagen](#phase-1--projektgrundlagen)
+  - [Phase 2 – TLS-Server](#phase-2--tls-server)
+  - [Phase 3 – WebSocket-Protokoll](#phase-3--websocket-protokoll)
+  - [Phase 4 – JSON-API-Protokoll](#phase-4--json-api-protokoll)
+  - [Phase 5 – Authentifizierung und Sicherheit](#phase-5--authentifizierung-und-sicherheit)
+  - [Phase 6 – Monitoring und Ereignisse](#phase-6--monitoring-und-ereignisse)
+  - [Phase 7 – IPFire-Integration](#phase-7--ipfire-integration)
+  - [Phase 8 – Künftige Kompatibilität](#phase-8--künftige-kompatibilität)
+- [Hinweise zur Entwicklung](#hinweise-zur-entwicklung)
+- [Lizenz](#lizenz)
 
-## Project Goals
+## Projektziele
 
-The goal is to develop a modular API for IPFire that supports persistent, bidirectional communication between IPFire and external clients.
+Das Ziel ist eine modulare API für IPFire, die eine dauerhafte Kommunikation in beide Richtungen zwischen IPFire und externen Clients ermöglicht.
 
-The implementation should:
+Die Implementierung soll folgende Anforderungen erfüllen.
 
-- Use Perl and modules already available on IPFire whenever possible.
-- Avoid additional runtime dependencies.
-- Provide secure WebSocket connections (WSS).
-- Support multiple simultaneous clients.
-- Use JSON for requests, responses, and events.
-- Support monitoring and, eventually, selected management operations.
-- Remain independent of the existing IPFire API v1.
+- Nach Möglichkeit Perl und bereits auf IPFire vorhandene Module verwenden.
+- Zusätzliche Laufzeitabhängigkeiten vermeiden.
+- Sichere WebSocket-Verbindungen (WSS) bereitstellen.
+- Mehrere Clients gleichzeitig unterstützen.
+- JSON für Anfragen, Antworten und Ereignisse verwenden.
+- Monitoring und später ausgewählte Verwaltungsfunktionen unterstützen.
+- Unabhängig von der bestehenden IPFire API v1 bleiben.
 
-Development will proceed incrementally, with testing on a real IPFire installation.
+Die Entwicklung erfolgt schrittweise. Getestet wird auf einer echten IPFire-Installation.
 
-## Planned Architecture
+## Geplante Architektur
 
-The API will run as a standalone Perl daemon.
+Die API soll als eigenständiger Perl-Daemon laufen.
 
-The initial communication protocol will be WebSocket over TLS (WSS), using TCP port `8444`.
+Als erstes Kommunikationsprotokoll ist WebSocket über TLS (WSS) auf TCP-Port `8444` vorgesehen.
 
-The planned project structure is:
+Die geplante Projektstruktur sieht wie folgt aus.
 
 ```text
 IPFire-API-v2/
@@ -86,50 +86,50 @@ IPFire-API-v2/
 └── README.md
 ```
 
-### Module Responsibilities
+### Aufgaben der Module
 
-| Module | Responsibility |
+| Modul | Aufgabe |
 |---|---|
-| `Auth.pm` | Client tokens, authentication and role lookup |
-| `AdminPage.pm` | Authenticated WebGUI forms for client and network settings |
-| `AdminProtocol.pm` | Local message framing between the CGI and the administration service |
-| `AdminService.pm` | Local administration requests and WebGUI process checks |
-| `Config.pm` | Server configuration, listening address, port and TLS certificate paths |
-| `NetworkPolicy.pm` | Listener address validation and client network checks |
-| `NetworkSettings.pm` | Validation and atomic storage of the management page's network settings |
-| `Server.pm` | TCP/TLS listener, connection handling and event loop |
-| `Client.pm` | Individual client connections and connection state |
-| `WebSocket.pm` | WebSocket handshake, frame processing and protocol control |
-| `Protocol.pm` | JSON message handling, request dispatching and responses |
-| `System.pm` | Read-only system information |
-| `ipfire-api-daemon.pl` | Main entry point for the API service |
+| `Auth.pm` | Client-Tokens, Authentifizierung und Ermittlung der Rolle |
+| `AdminPage.pm` | WebGUI-Formulare zur Verwaltung von Clients und Netzwerkeinstellungen mit Authentifizierung |
+| `AdminProtocol.pm` | Verpacken lokaler Nachrichten zwischen CGI und Verwaltungsdienst |
+| `AdminService.pm` | Lokale Verwaltungsanfragen und Prüfung der WebGUI-Prozesse |
+| `Config.pm` | Serverkonfiguration, lokale Adresse, Port und Pfade zu den TLS-Zertifikaten |
+| `NetworkPolicy.pm` | Prüfung lokaler Adressen und der Client-Netze |
+| `NetworkSettings.pm` | Validierung und atomares Speichern der Netzwerkeinstellungen der Verwaltungsseite |
+| `Server.pm` | TCP-/TLS-Listener, Verbindungsverwaltung und Ereignisschleife |
+| `Client.pm` | Einzelne Client-Verbindungen und ihr Verbindungszustand |
+| `WebSocket.pm` | WebSocket-Handshake, Verarbeitung von Frames und Protokollsteuerung |
+| `Protocol.pm` | Verarbeitung von JSON-Nachrichten, Weiterleitung von Anfragen an die zuständige Methode und Antworten |
+| `System.pm` | Lesender Zugriff auf Systeminformationen |
+| `ipfire-api-daemon.pl` | Startpunkt des API-Dienstes |
 
-## IPFire Compatibility
+## IPFire-Kompatibilität
 
-Initial dependency checks were performed on:
+Die ersten Abhängigkeitsprüfungen wurden mit folgenden Versionen durchgeführt.
 
 - IPFire 2.29 Core Update 205
 - Perl 5.42.2
 
-The following modules were confirmed to be available:
+Dabei wurde die Verfügbarkeit der folgenden Module geprüft.
 
-| Perl Module | Status |
+| Perl-Modul | Status |
 |---|---|
-| `IO::Socket::INET` | Available |
-| `IO::Socket::SSL` | Available |
-| `Net::SSLeay` | Available |
-| `IO::Select` | Available |
-| `Digest::SHA` | Available |
-| `MIME::Base64` | Available |
-| `Protocol::WebSocket` | Not available |
+| `IO::Socket::INET` | Verfügbar |
+| `IO::Socket::SSL` | Verfügbar |
+| `Net::SSLeay` | Verfügbar |
+| `IO::Select` | Verfügbar |
+| `Digest::SHA` | Verfügbar |
+| `MIME::Base64` | Verfügbar |
+| `Protocol::WebSocket` | Nicht verfügbar |
 
-JSON support is already used in the existing API v1 implementation.
+Die bestehende API v1 verwendet bereits JSON.
 
-The initial assessment suggests that a WebSocket server can be implemented without additional Perl packages. This still requires practical verification.
+Nach der ersten Einschätzung lässt sich ein WebSocket-Server ohne zusätzliche Perl-Pakete umsetzen. Das muss noch praktisch überprüft werden.
 
-### Manage client access on IPFire
+### Client-Zugriff auf IPFire verwalten
 
-From the repository checkout, use the same local account that runs the daemon:
+Die folgenden Befehle im Projektverzeichnis mit demselben lokalen Benutzerkonto ausführen, unter dem der Daemon läuft.
 
 ```sh
 perl bin/ipfire-api-clients.pl add home-assistant
@@ -137,103 +137,56 @@ perl bin/ipfire-api-clients.pl list
 perl bin/ipfire-api-clients.pl revoke home-assistant
 ```
 
-`add` creates a client with the `monitoring` role and prints its token once. Store the token in
-the client. The client tool stores a SHA-256 digest in the daemon's private client directory. When adding a
-client for testing, use a separate name such as `smoke-test`.
+`add` legt einen Client mit der Rolle `monitoring` an und gibt dessen Token einmalig aus. Den Token im Client hinterlegen. Das Werkzeug speichert einen SHA-256-Hash im privaten Client-Verzeichnis des Daemons. Für Tests einen eigenen Namen wie `smoke-test` verwenden.
 
-Clients send `Authorization: Bearer <token>` with their WebSocket upgrade over TLS. Missing,
-invalid and revoked tokens receive HTTP 401. The monitoring role allows `system.ping` and
-`system.info`. Revocation applies to subsequent requests on existing connections and to all new
-connections. The daemon applies additions and revocations without a restart.
+Clients senden beim WebSocket-Upgrade über TLS den Header `Authorization: Bearer <token>`. Bei fehlenden, ungültigen oder widerrufenen Tokens antwortet der Server mit HTTP 401. Die Monitoring-Rolle erlaubt `system.ping` und `system.info`. Ein Widerruf gilt für nachfolgende Anfragen auf bestehenden Verbindungen und für alle neuen Verbindungen. Der Daemon übernimmt neu angelegte und widerrufene Zugänge ohne Neustart.
 
-### Connection and request limits
+### Verbindungs- und Anfragelimits
 
-The API daemon accepts up to 32 simultaneous connections across all listeners,
-including connections still negotiating TLS or upgrading to WebSocket. Each authenticated token has a
-shared allowance across its connections. A client can send a burst of up to
-10 requests, and the allowance refills by 2 requests per second. When the
-allowance is exhausted, the daemon replies with `rate_limited` for requests
-with a valid ID. The WebSocket stays open so the client can retry later.
-WebSocket control frames do not consume the request allowance.
+Der API-Daemon akzeptiert über alle Listener hinweg bis zu 32 gleichzeitige Verbindungen. Dazu zählen auch Verbindungen während des TLS-Handshakes oder des WebSocket-Upgrades. Alle Verbindungen, die denselben authentifizierten Token verwenden, teilen sich ein Anfragekontingent. Ein Client kann bis zu 10 Anfragen unmittelbar hintereinander senden. Das Kontingent füllt sich um 2 Anfragen pro Sekunde wieder auf. Ist es ausgeschöpft, beantwortet der Daemon Anfragen mit gültiger ID mit `rate_limited`. Die WebSocket-Verbindung bleibt offen, damit der Client es später erneut versuchen kann. WebSocket-Steuerframes verbrauchen kein Kontingent.
 
-### Configure allowed client networks
+### Erlaubte Client-Netze konfigurieren
 
-Without saved settings or an explicit override, the daemon listens on `127.0.0.1`.
-For a manual configuration, set
-`IPFIRE_API_HOST` to a specific local IPFire address and set `IPFIRE_API_ALLOWED_NETWORKS`
-to a comma-separated list of IPv4 or IPv6 client networks in CIDR notation.
-For example, replace the documentation addresses below with the IPFire address and the
-client network you want to allow:
+Ohne gespeicherte Einstellungen oder ausdrückliche Vorgabe lauscht der Daemon auf `127.0.0.1`. Für eine manuelle Konfiguration `IPFIRE_API_HOST` auf eine bestimmte lokale IPFire-Adresse setzen und in `IPFIRE_API_ALLOWED_NETWORKS` die IPv4- oder IPv6-Client-Netze als kommaseparierte Liste in CIDR-Schreibweise angeben. Die Dokumentationsadressen im Beispiel durch die eigene IPFire-Adresse und das freizugebende Client-Netz ersetzen.
 
 ```sh
 IPFIRE_API_HOST=192.0.2.1 IPFIRE_API_ALLOWED_NETWORKS=192.0.2.0/24 \
   perl bin/ipfire-api-daemon.pl
 ```
 
-The daemon checks the source IP address of each TCP connection before starting TLS.
-Clients in allowed networks still need a valid token. An explicit network list replaces
-the loopback defaults. Include `127.0.0.0/8` if you use a loopback listener with a custom
-list and want local IPv4 clients to connect. The listener accepts a specific IP address.
-A non-loopback listener requires an explicit network list. Changes to these
-environment variables take effect when the daemon starts.
+Der Daemon prüft die Quell-IP-Adresse jeder TCP-Verbindung vor dem TLS-Handshake. Auch Clients aus erlaubten Netzen benötigen einen gültigen Token. Eine explizite Netzwerkliste ersetzt die Loopback-Standardwerte. Bei einem Loopback-Listener mit eigener Liste `127.0.0.0/8` aufnehmen, wenn lokale IPv4-Clients zugelassen werden sollen. Der Listener lauscht auf einer konkreten IP-Adresse. Außerhalb von Loopback ist eine explizite Netzwerkliste erforderlich. Änderungen an diesen Umgebungsvariablen gelten ab dem Start des Daemons.
 
-### Use the API management page
+### API-Verwaltungsseite verwenden
 
-`/cgi-bin/api.cgi` continues to return JSON for HA-IPFire. The response retains the data
-HA-IPFire reads, and the existing connect, disconnect, upgrade and reboot requests use their
-current API headers. Open **Services → IPFire API v2** in the authenticated IPFire WebGUI
-to manage API v2 clients and allowed networks. The direct address is
-`/cgi-bin/api.cgi?view=admin`. Copy a new client's token when the page displays it.
+`/cgi-bin/api.cgi` liefert weiterhin JSON für HA-IPFire. Die Antwort enthält die von HA-IPFire gelesenen Daten. Die vorhandenen Anfragen zum Verbinden, Trennen, Aktualisieren und Neustarten verwenden weiterhin ihre bisherigen API-Header. In der angemeldeten IPFire-WebGUI unter **Dienste → IPFire API v2** lassen sich API-v2-Clients und erlaubte Netze verwalten. Die Seite ist direkt unter `/cgi-bin/api.cgi?view=admin` erreichbar. Den Token eines neuen Clients kopieren, wenn er angezeigt wird.
 
-Install the menu entry from the project checkout as root:
+Den Menüeintrag aus dem Projektverzeichnis als `root` installieren.
 
 ```sh
 install -o root -g root -m 0644 deploy/ipfire/EX-ipfire-api-v2.menu /var/ipfire/menu.d/EX-ipfire-api-v2.menu
 ```
 
-Install the init script and boot links below to use the **API daemon** controls.
-**Start** and **Stop** change the current runtime state. **Start at system boot**
-controls the next boot independently. The administration service stays running
-so you can start the API or edit its settings while it is stopped.
+Für die Bedienelemente unter **API daemon** das Init-Skript und die Startlinks wie unten beschrieben installieren. **Start** und **Stop** ändern den aktuellen Betriebszustand. **Start at system boot** steuert unabhängig davon den nächsten Systemstart. Der Verwaltungsdienst läuft weiter, sodass sich die API auch im gestoppten Zustand starten und konfigurieren lässt.
 
-On a test IPFire, install the Perl modules so `/usr/local/lib/ipfire-api-v2/IPFire/API/AdminPage.pm`
-exists. Back up any existing `/srv/web/ipfire/cgi-bin/api.cgi` before installing the new CGI there
-with mode `0755`. Start the local administration service from the project checkout, using the
-Apache user from `/etc/httpd/conf/uid.conf` as its argument:
+Auf einem IPFire-Testsystem die Perl-Module so installieren, dass `/usr/local/lib/ipfire-api-v2/IPFire/API/AdminPage.pm` vorhanden ist. Eine bestehende Datei `/srv/web/ipfire/cgi-bin/api.cgi` vor der Installation der neuen CGI-Datei mit den Rechten `0755` sichern. Den lokalen Verwaltungsdienst aus dem Projektverzeichnis starten und als Argument den Apache-Benutzer aus `/etc/httpd/conf/uid.conf` übergeben.
 
 ```sh
 perl bin/ipfire-api-admin.pl nobody
 ```
 
-Run the administration service and the TLS daemon as the same local account. The administration
-service checks the Unix socket peer against the specified WebGUI user and uses the same private
-client directory as the daemon. Keep the administration service running while using the page.
+Den Verwaltungsdienst und den TLS-Daemon unter demselben lokalen Benutzerkonto ausführen. Der Verwaltungsdienst prüft, ob die Gegenstelle am Unix-Socket dem angegebenen WebGUI-Benutzer entspricht. Er nutzt dasselbe private Client-Verzeichnis wie der Daemon. Während der Nutzung der Seite muss der Verwaltungsdienst laufen.
 
-Under **Network access**, select the zones under **Allowed networks**. GREEN is
-preselected for a fresh setup. ORANGE and BLUE are offered when configured.
-Each selected zone enables a listener on that IPFire interface address. The
-listener accepts connections from that zone's configured IPv4 subnet. Both the
-address and the subnet are shown beside the checkbox.
+Unter **Network access** im Bereich **Allowed networks** die Zonen auswählen. Bei einer frischen Einrichtung ist GREEN vorausgewählt. ORANGE und BLUE stehen zur Auswahl, sofern sie eingerichtet sind. Für jede ausgewählte Zone wird ein Listener auf der IPFire-Adresse der jeweiligen Schnittstelle aktiviert. Er akzeptiert Verbindungen aus dem IPv4-Subnetz dieser Zone. Adresse und Subnetz stehen neben dem Kontrollkästchen.
 
-Saving writes the zone selection to `/var/ipfire/api-v2-network.json`. A running API daemon
-automatically reloads its listeners within about one second. Active WebSocket connections
-close when the listener configuration changes, so clients can reconnect. If a new
-listener cannot be opened, the daemon logs the error, keeps its previous listeners
-and retries automatically. IPFire firewall rules still apply and may require access to the API
-port on the zone's own IPFire address. The WebGUI handles its own access.
-A change through the WebGUI replaces any previously saved manual listener and CIDRs.
-Setting `IPFIRE_API_HOST` or `IPFIRE_API_ALLOWED_NETWORKS` selects the manual
-single-listener mode for that process and disables automatic reloads.
+Beim Speichern wird die Zonenauswahl in `/var/ipfire/api-v2-network.json` geschrieben. Ein laufender API-Daemon lädt die Listener innerhalb von etwa einer Sekunde automatisch neu. Ändert sich die Listener-Konfiguration, werden bestehende WebSocket-Verbindungen geschlossen. Die Clients können sich anschließend neu verbinden. Kann ein neuer Listener nicht geöffnet werden, protokolliert der Daemon den Fehler, behält die bisherigen Listener und versucht es erneut. Die IPFire-Firewallregeln gelten weiterhin. Gegebenenfalls muss der API-Port auf der IPFire-Adresse der Zone freigegeben werden. Die WebGUI regelt ihren Zugriff selbst.
 
-### Start both services automatically on IPFire
+Eine Änderung über die WebGUI ersetzt zuvor manuell gespeicherte Listener- und CIDR-Einstellungen. `IPFIRE_API_HOST` oder `IPFIRE_API_ALLOWED_NETWORKS` aktiviert für diesen Prozess den manuellen Betrieb mit einem einzelnen Listener. Dabei sind automatische Konfigurationsupdates deaktiviert.
 
-The SysV init script starts the API daemon and the local administration service
-from `/root/IPFire-API-v2`. It reads the Apache user from
-`/etc/httpd/conf/uid.conf` and uses the project's default configuration paths.
-Stop any manually started instances with Ctrl+C in their original terminals
-before switching to the init script.
+### Beide Dienste auf IPFire automatisch starten
 
-Install and start the script as root on IPFire:
+Das SysV-Init-Skript startet den API-Daemon und den lokalen Verwaltungsdienst aus `/root/IPFire-API-v2`. Es liest den Apache-Benutzer aus `/etc/httpd/conf/uid.conf` und verwendet die Standardpfade des Projekts. Vor dem Wechsel zum Init-Skript die manuell gestarteten Instanzen in ihren jeweiligen Terminals mit Strg+C beenden.
+
+Das Skript auf IPFire als `root` installieren und starten.
 
 ```sh
 cd /root/IPFire-API-v2 &&
@@ -242,8 +195,7 @@ install -o root -g root -m 0755 deploy/ipfire/ipfire-api-v2 /etc/rc.d/init.d/ipf
 /etc/rc.d/init.d/ipfire-api-v2 status
 ```
 
-Once both processes are running, enable startup after the network is configured
-and stop the services on shutdown or reboot:
+Sobald beide Prozesse laufen, den automatischen Start nach der Netzwerkkonfiguration sowie das Stoppen beim Herunterfahren oder Neustart einrichten.
 
 ```sh
 ln -s ../init.d/ipfire-api-v2 /etc/rc.d/rc3.d/S99ipfire-api-v2 &&
@@ -251,34 +203,21 @@ ln -s ../init.d/ipfire-api-v2 /etc/rc.d/rc0.d/K20ipfire-api-v2 &&
 ln -s ../init.d/ipfire-api-v2 /etc/rc.d/rc6.d/K20ipfire-api-v2
 ```
 
-The boot links start the administration service and honor the API daemon's
-autostart setting. The API autostart is enabled by default. Disabling it creates
-`/etc/sysconfig/ipfire-api-v2.no-autostart`.
+Die Startlinks starten den Verwaltungsdienst und berücksichtigen die Autostart-Einstellung des API-Daemons. Der API-Autostart ist standardmäßig aktiviert. Beim Deaktivieren wird `/etc/sysconfig/ipfire-api-v2.no-autostart` angelegt.
 
-Use `/etc/rc.d/init.d/ipfire-api-v2 stop`, `restart` or `status` to manage
-the processes together. A combined restart honors the autostart setting. Use
-`daemon-start` or `daemon-stop` to explicitly control only the API daemon.
-Look for `ipfire-api-admin` and `ipfire-api-daemon` in the
-IPFire system log. After the next IPFire reboot, check `status`, confirm the
-expected listener with `ss -ltnp 'sport = :8444'` and open the management page
-to confirm it can reach the administration service.
+Mit `/etc/rc.d/init.d/ipfire-api-v2 stop`, `restart` oder `status` lassen sich beide Prozesse gemeinsam verwalten. Ein gemeinsamer Neustart berücksichtigt die Autostart-Einstellung. Mit `daemon-start` oder `daemon-stop` lässt sich der API-Daemon einzeln steuern. Seine und die Meldungen des Verwaltungsdienstes stehen als `ipfire-api-daemon` und `ipfire-api-admin` im IPFire-Systemprotokoll. Nach dem nächsten IPFire-Neustart mit `status` den Zustand und mit `ss -ltnp 'sport = :8444'` den erwarteten Listener prüfen. Anschließend die Verwaltungsseite öffnen und prüfen, ob sie den Verwaltungsdienst erreicht.
 
-### Test the TLS listener on IPFire
+### TLS-Listener auf IPFire testen
 
-The API requires TLS 1.2 or newer. It uses the IPFire WebGUI certificate and
-private key by default. Clients must verify the certificate against a trusted CA
-and check the name they expect to connect to. For a self-signed IPFire certificate,
-use a trusted copy of the public certificate as the CA file. Keep the private
-key on IPFire and restrict read access to the services that need it. Restart the
-daemon after replacing its certificate or key.
+Die API benötigt mindestens TLS 1.2. Sie verwendet standardmäßig das Zertifikat und den privaten Schlüssel der IPFire-WebGUI. Clients müssen das Zertifikat gegen eine vertrauenswürdige Zertifizierungsstelle und den erwarteten Servernamen prüfen. Bei einem selbstsignierten IPFire-Zertifikat eine vertrauenswürdige Kopie des öffentlichen Zertifikats als CA-Datei verwenden. Der private Schlüssel bleibt auf IPFire. Nur die Dienste, die ihn benötigen, sollen Lesezugriff erhalten. Nach einem Austausch des Zertifikats oder Schlüssels den Daemon neu starten.
 
-For a local test from the repository checkout on IPFire, start the daemon with explicit loopback settings:
+Für einen lokalen Test im Projektverzeichnis auf IPFire den Daemon mit expliziten Loopback-Einstellungen starten.
 
 ```sh
 IPFIRE_API_HOST=127.0.0.1 IPFIRE_API_ALLOWED_NETWORKS=127.0.0.0/8 perl bin/ipfire-api-daemon.pl
 ```
 
-From a second shell on the same IPFire host, connect to the listener:
+In einer zweiten Shell auf derselben IPFire-Installation mit dem Listener verbinden.
 
 ```sh
 openssl s_client -connect 127.0.0.1:8444 \
@@ -286,25 +225,19 @@ openssl s_client -connect 127.0.0.1:8444 \
   -CAfile /etc/httpd/server.crt -verify_return_error </dev/null
 ```
 
-Use your IPFire certificate name in place of `ipfire.local`.
-The daemon allows up to five seconds for the TLS handshake and another five seconds for the WebSocket upgrade.
-Stop it with `Ctrl+C` or send `SIGTERM` to the daemon process. The daemon closes its listener and
-client connections, prints `IPFire API v2 stopped`, and exits successfully.
-If the server certificate was issued by a CA, use that CA's certificate for `-CAfile`.
+`ipfire.local` durch den Namen aus dem eigenen IPFire-Zertifikat ersetzen. Der Daemon lässt bis zu fünf Sekunden für den TLS-Handshake und weitere fünf Sekunden für das WebSocket-Upgrade zu. Zum Anhalten `Ctrl+C` drücken oder `SIGTERM` an den Daemon-Prozess senden. Der Daemon schließt Listener und Client-Verbindungen, gibt `IPFire API v2 stopped` aus und beendet sich erfolgreich. Wurde das Serverzertifikat von einer CA ausgestellt, deren Zertifikat für `-CAfile` verwenden.
 
-API v2 service logs record lifecycle events, timeouts and general failure
-messages. They omit bearer tokens, token digests and raw client requests.
+Die API-v2-Dienstprotokolle enthalten Start- und Stoppereignisse, Zeitüberschreitungen und allgemeine Fehlermeldungen. Bearer-Tokens, Token-Hashes und rohe Client-Anfragen werden ausgelassen.
 
-To check the handshake timeout, open a TCP connection without starting TLS from the second shell on IPFire:
+Zur Prüfung des Handshake-Timeouts in der zweiten Shell auf IPFire eine TCP-Verbindung ohne TLS öffnen.
 
 ```sh
 time timeout 8 bash -c 'exec 3<>/dev/tcp/127.0.0.1/8444; cat <&3'
 ```
 
-Expect the connection to close after about five seconds and the daemon to log `TLS handshake failed: timed out`.
-Run the [API smoke test](#test-the-api-on-ipfire) immediately afterward to confirm that the daemon serves another client.
+Die Verbindung sollte nach etwa fünf Sekunden geschlossen werden. Der Daemon sollte `TLS handshake failed: timed out` protokollieren. Unmittelbar danach den [API-Kurztest](#api-auf-ipfire-testen) ausführen, um sicherzustellen, dass der Daemon einen weiteren Client bedient.
 
-To test the WebSocket upgrade from the second shell, run:
+Für den Test des WebSocket-Upgrades in der zweiten Shell den folgenden Befehl ausführen.
 
 ```sh
 key=$(openssl rand -base64 16)
@@ -316,89 +249,59 @@ printf 'GET / HTTP/1.1\r\nHost: 127.0.0.1:8444\r\nUpgrade: websocket\r\nConnecti
 unset token
 ```
 
-Expect `HTTP/1.1 101 Switching Protocols` and a `Sec-WebSocket-Accept` header.
-The daemon keeps the connection open after the upgrade and waits up to 30 seconds for each frame.
-It allows up to five seconds to send each reply frame and closes connections that time out.
-See [Connection and request limits](#connection-and-request-limits) for the limits that apply to this connection.
-The message limit is 64 KiB, including fragmented messages.
-Ping receives Pong, and Close ends the connection.
+Erwartet werden `HTTP/1.1 101 Switching Protocols` und ein `Sec-WebSocket-Accept`-Header. Nach dem Upgrade bleibt die Verbindung offen. Der Daemon wartet bis zu 30 Sekunden auf jeden Frame. Für das Senden eines Antwortframes sind bis zu fünf Sekunden vorgesehen. Bei einer Zeitüberschreitung schließt der Daemon die Verbindung. Die geltenden Limits stehen unter [Verbindungs- und Anfragelimits](#verbindungs--und-anfragelimits). Eine Nachricht darf einschließlich ihrer Fragmente maximal 64 KiB groß sein. Auf Ping folgt Pong. Close beendet die Verbindung.
 
-### Send a JSON request
+### JSON-Anfrage senden
 
-Send one JSON object per WebSocket text message. Each request has an `id` string of 1 to 128 characters
-and a `method` string. The first method, `system.ping`, accepts no parameters. The `params` field can
-be omitted or set to an empty object.
+Pro WebSocket-Textnachricht ein JSON-Objekt senden. Jede Anfrage enthält eine Zeichenkette `id` mit 1 bis 128 Zeichen sowie eine Zeichenkette `method`. Die erste Methode `system.ping` nimmt keine Parameter entgegen. Das Feld `params` kann entfallen oder ein leeres Objekt enthalten.
 
 ```json
 {"id":"ping-1","method":"system.ping"}
 ```
 
-The reply carries the same ID and a `result` or `error` object. For example:
+Die Antwort enthält dieselbe ID und ein `result`- oder `error`-Objekt, wie im folgenden Beispiel.
 
 ```json
 {"id":"ping-1","result":{"pong":true}}
 ```
 
-Errors contain `code` and `message`. The reply ID is `null` when the request has no valid ID.
-The current error codes are `invalid_json`, `invalid_request`, `method_not_found`, `invalid_params`,
-`access_denied`, `rate_limited` and `internal_error`. If a method fails internally,
-the response carries the request ID and the client can continue using the same connection.
+Fehler enthalten `code` und `message`. Hat die Anfrage keine gültige ID, lautet die Antwort-ID `null`. Aktuell sind die Fehlercodes `invalid_json`, `invalid_request`, `method_not_found`, `invalid_params`, `access_denied`, `rate_limited` und `internal_error` vorgesehen. Schlägt eine Methode intern fehl, enthält die Antwort weiterhin die Anfrage-ID. Der Client kann dieselbe Verbindung weiterverwenden.
 
-Use `{"id":"info-1","method":"system.info"}` for the hostname, the IPFire release string and whole
-seconds since boot. The result fields are `hostname`, `ipfire_release` and `uptime_seconds`.
-Release and uptime are `null` if their sources are unavailable. This method also accepts no parameters.
+`{"id":"info-1","method":"system.info"}` liefert den Hostnamen, die IPFire-Version und die Zeit seit dem Systemstart in ganzen Sekunden. Die Felder heißen `hostname`, `ipfire_release` und `uptime_seconds`. Sind die Quellen für Version oder Laufzeit nicht verfügbar, lautet der jeweilige Wert `null`. Auch diese Methode nimmt keine Parameter entgegen.
 
-### Subscribe to monitoring events
+### Monitoring-Ereignisse abonnieren
 
-An authenticated monitoring client can subscribe on its WebSocket connection.
+Ein authentifizierter Monitoring-Client kann Ereignisse auf seiner WebSocket-Verbindung abonnieren.
 
 ```json
 {"id":"watch-1","method":"events.subscribe","params":{"event":"system.info"}}
 ```
 
-The reply is `{"id":"watch-1","result":{"event":"system.info","subscribed":true}}`.
-The daemon then sends a notification approximately every five seconds when the
-connection can send it. A notification carries an event name and data, with no
-request ID. The data has the same fields as the `system.info` method.
+Die Antwort lautet `{"id":"watch-1","result":{"event":"system.info","subscribed":true}}`. Anschließend sendet der Daemon etwa alle fünf Sekunden eine Benachrichtigung, sofern die Verbindung das Senden zulässt. Eine Benachrichtigung enthält den Ereignisnamen und die Daten. Sie hat keine Anfrage-ID. Die Daten enthalten dieselben Felder wie die Methode `system.info`.
 
 ```json
 {"event":"system.info","data":{"hostname":"ipfire","ipfire_release":"IPFire","uptime_seconds":3600}}
 ```
 
-Subscribe to `red.status` to monitor the RED interface:
+Zur Überwachung der RED-Schnittstelle das Ereignis `red.status` abonnieren.
 
 ```json
 {"id":"watch-red","method":"events.subscribe","params":{"event":"red.status"}}
 ```
 
-The daemon sends the current RED status after confirming the subscription. It
-then checks approximately every five seconds and sends an event when the
-status or connection timestamp changes.
+Der Daemon sendet nach der Abo-Bestätigung den aktuellen RED-Status. Anschließend prüft er etwa alle fünf Sekunden, ob sich der Status oder der Verbindungszeitstempel geändert hat, und sendet bei einer Änderung ein Ereignis.
 
 ```json
 {"event":"red.status","data":{"status":"connected","connected_since":1795383000}}
 ```
 
-The status is `connected` while IPFire's `/var/ipfire/red/active` marker exists,
-`disconnected` when the marker is absent and the RED directory is available,
-or `unknown` when the RED state cannot be read. `connected_since` is the
-marker's modification time in Unix seconds. It is `null` in the other states.
-This reports IPFire's RED state. Internet reachability is a separate check.
+Der Status lautet `connected`, solange die IPFire-Markierungsdatei `/var/ipfire/red/active` existiert. Fehlt sie bei vorhandenem RED-Verzeichnis, lautet er `disconnected`. Kann der RED-Status nicht gelesen werden, lautet er `unknown`. `connected_since` gibt die Änderungszeit der Markierungsdatei in Unix-Sekunden an und ist bei den anderen Zuständen `null`. Das Ereignis meldet den RED-Zustand aus Sicht von IPFire. Die Erreichbarkeit des Internets lässt sich separat prüfen.
 
-Call `events.unsubscribe` with the same `params` to stop notifications.
-Each event can be subscribed to and unsubscribed from independently.
-Repeated subscribe and unsubscribe requests are safe. Each subscription belongs
-to its connection. A client must subscribe again after reconnecting. The daemon
-checks the client token before queuing each notification.
+`events.unsubscribe` mit denselben `params` aufrufen, um Benachrichtigungen abzubestellen. Jedes Ereignis lässt sich unabhängig abonnieren und abbestellen. Beide Anfragen lassen sich gefahrlos wiederholen. Jedes Abo gehört zur jeweiligen Verbindung. Nach einer Wiederverbindung muss der Client es erneut anlegen. Vor jeder eingeplanten Benachrichtigung prüft der Daemon den Client-Token.
 
-### Run the Java event client
+### Java-Ereignisclient starten
 
-A simple graphical Java client is available for testing IPFire API v2. It
-connects over WSS, subscribes to `system.info` and `red.status` and displays the
-subscription replies and JSON notifications. It uses only the Java standard library.
-Download the [example JAR](examples/java/ipfire-events.jar) and run it on Java
-11 or later with `java -jar ipfire-events.jar`. To build the client from source,
-use a JDK:
+Zum Testen von IPFire API v2 steht ein einfacher grafischer Java-Client bereit. Er verbindet sich über WSS, abonniert `system.info` und `red.status` und zeigt die Abo-Antworten sowie die JSON-Benachrichtigungen an. Er verwendet nur die Java-Standardbibliothek. Das [Beispiel-JAR](examples/java/ipfire-events.jar) herunterladen und mit Java 11 oder neuer über `java -jar ipfire-events.jar` starten. Wer den Client aus dem Quellcode bauen möchte, benötigt ein JDK.
 
 ```sh
 cd examples/java
@@ -406,44 +309,29 @@ javac -encoding UTF-8 --release 11 -d build/classes IPFireEvents.java IPFireEven
 jar --create --file build/ipfire-events.jar --main-class IPFireEvents -C build/classes .
 ```
 
-Open the graphical client from a desktop session:
+Den grafischen Client aus einer Desktop-Sitzung starten.
 
 ```sh
 java -jar build/ipfire-events.jar
 ```
 
-Enter the WebSocket URL, for example `wss://ipfire.local:8444/`, and paste the
-token into the masked token field. If IPFire uses a self-signed certificate,
-select a trusted copy of its public certificate in the certificate field.
-The certificate dialog shows PEM files by default. Choose **All files** to
-select a certificate with a different extension.
+Die WebSocket-URL eingeben, etwa `wss://ipfire.local:8444/`, und den Token in das verdeckte Eingabefeld einfügen. Verwendet IPFire ein selbstsigniertes Zertifikat, im Zertifikatsfeld eine vertrauenswürdige Kopie des öffentlichen Zertifikats auswählen. Der Zertifikatsdialog zeigt standardmäßig PEM-Dateien an. Über **Alle Dateien** lassen sich Zertifikate mit anderer Dateiendung auswählen.
 
-Use the radio buttons above the output to select **System**, **RED-Status** or
-**Alle verfügbaren** before connecting. Other API v1 topics are shown as
-disabled until API v2 supports them. Use **Verbinden** to start receiving
-JSON messages and **Trennen** to end the session.
+Vor dem Verbinden oberhalb der Ausgabe **System**, **RED-Status** oder **Alle verfügbaren** auswählen. Die übrigen Themen aus API v1 bleiben ausgegraut, bis API v2 sie unterstützt. Mit **Verbinden** beginnt der Empfang der JSON-Nachrichten. **Trennen** beendet die Sitzung.
 
-If the connection drops after a successful connection, the graphical client
-retries with an increasing delay of up to 30 seconds and restores the selected
-subscriptions. **Trennen** cancels retries. A rejected token or a certificate
-error stops the retry cycle so the connection settings can be corrected.
+Bricht eine zuvor erfolgreich aufgebaute Verbindung ab, versucht der grafische Client die Wiederverbindung mit zunehmender Wartezeit von bis zu 30 Sekunden und stellt die ausgewählten Abos wieder her. **Trennen** bricht die Wiederverbindungsversuche ab. Wird der Token abgelehnt oder schlägt die Zertifikatsprüfung fehl, hält der Client an, damit sich die Einstellungen korrigieren lassen.
 
-Passing the URL when launching the JAR selects the command-line mode:
+Wird beim Start des JARs eine URL übergeben, läuft der Client im Kommandozeilenmodus.
 
 ```sh
 java -jar build/ipfire-events.jar wss://ipfire.local:8444/ ipfire-public.pem
 ```
 
-Use a trusted copy of the public server certificate for a self-signed IPFire
-certificate, or pass the issuing CA certificate in PEM format. Omit the second
-argument to use Java's default trust store. Java verifies the server name in
-either case. Enter the client token when prompted. The client also accepts the
-token on standard input for non-interactive use. Press Ctrl+C to close the client.
+Bei einem selbstsignierten IPFire-Zertifikat eine vertrauenswürdige Kopie des öffentlichen Serverzertifikats verwenden. Bei einem von einer CA ausgestellten Zertifikat das Zertifikat der ausstellenden CA im PEM-Format übergeben. Ohne zweites Argument verwendet Java seinen Standard-Truststore. Java prüft den Servernamen in beiden Fällen. Den Client-Token bei der Eingabeaufforderung eingeben. Im nicht interaktiven Betrieb kann der Token auch über die Standardeingabe übergeben werden. Den Client mit Strg+C beenden.
 
-### Test the API on IPFire
+### API auf IPFire testen
 
-Start the daemon with the loopback test settings above in the first SSH session. In a second Bash session on IPFire, run
-this from the repository checkout and enter a valid client token:
+In der ersten SSH-Sitzung den Daemon wie oben beschrieben mit den Loopback-Testeinstellungen starten. In einer zweiten Bash-Sitzung auf IPFire im Projektverzeichnis den folgenden Befehl ausführen und einen gültigen Client-Token eingeben.
 
 ```sh
 read -rs -p 'Client token: ' token
@@ -452,28 +340,16 @@ printf '%s\n' "$token" | perl -Ilib t/ipfire-smoke.pl ipfire.local
 unset token
 ```
 
-Replace `ipfire.local` with the name on your IPFire certificate.
-To test the running service on GREEN, pass its listener IP as the second argument,
-for example `perl -Ilib t/ipfire-smoke.pl ipfire.local 192.168.0.254`.
-If a CA issued the certificate, pass the CA certificate path as the third argument.
-Expect the verified TLS version, `Upgrade OK`, `Pong OK`, `system.ping OK`, the system information in JSON,
-`system.info OK` and `Close OK`.
+`ipfire.local` durch den Namen aus dem eigenen IPFire-Zertifikat ersetzen. Zum Testen des laufenden Dienstes auf GREEN die IP-Adresse seines Listeners als zweites Argument übergeben, etwa `perl -Ilib t/ipfire-smoke.pl ipfire.local 192.168.0.254`. Wurde das Zertifikat von einer CA ausgestellt, als drittes Argument den Pfad zu deren Zertifikat übergeben. Erwartet werden die geprüfte TLS-Version, `Upgrade OK`, `Pong OK`, `system.ping OK`, die Systeminformationen als JSON, `system.info OK` und `Close OK`.
 
-On IPFire, run the concurrency test from the repository with `perl -Ilib t/server-concurrency.t`.
-It starts its own daemon on a free loopback port and uses a temporary certificate generated with
-OpenSSL. It checks that an unfinished TLS handshake and a partial WebSocket frame leave other
-clients able to get a response. It also checks shutdown with `SIGTERM` and reuse of the listening
-port, rejects missing and invalid tokens, verifies live revocation, and checks that
-two configured zone listeners share the same port with separate source networks.
-It also checks TLS versions, certificate trust, hostname verification and the
-absence of credentials in the daemon log.
+Den Test für gleichzeitige Verbindungen auf IPFire aus dem Projektverzeichnis mit `perl -Ilib t/server-concurrency.t` starten. Er startet einen eigenen Daemon auf einem freien Loopback-Port und verwendet ein temporäres, mit OpenSSL erzeugtes Zertifikat. Er prüft, ob andere Clients weiterhin eine Antwort erhalten, während ein TLS-Handshake oder ein WebSocket-Frame unvollständig bleibt. Zudem prüft er das Beenden mit `SIGTERM` und die erneute Verwendung des Listener-Ports, weist fehlende und ungültige Tokens ab und prüft den Widerruf im laufenden Betrieb. Zwei konfigurierte Zonen-Listener müssen denselben Port mit getrennten Quellnetzen verwenden können. Der Test prüft außerdem TLS-Versionen, Zertifikatsvertrauen und Hostnamenprüfung sowie, dass keine Zugangsdaten im Daemon-Protokoll auftauchen.
 
-Run the full test suite on development systems with `prove -l t`.
+Die vollständige Testsuite auf Entwicklungssystemen mit `prove -l t` ausführen.
 
-| Environment variable | Default |
+| Umgebungsvariable | Standardwert |
 |---|---|
 | `IPFIRE_API_HOST` | `127.0.0.1` |
-| `IPFIRE_API_ALLOWED_NETWORKS` | `127.0.0.0/8,::1/128` for loopback listeners |
+| `IPFIRE_API_ALLOWED_NETWORKS` | `127.0.0.0/8,::1/128` für Loopback-Listener |
 | `IPFIRE_API_PORT` | `8444` |
 | `IPFIRE_API_CERT_FILE` | `/etc/httpd/server.crt` |
 | `IPFIRE_API_KEY_FILE` | `/etc/httpd/server.key` |
@@ -481,152 +357,150 @@ Run the full test suite on development systems with `prove -l t`.
 | `IPFIRE_API_NETWORK_SETTINGS_FILE` | `/var/ipfire/api-v2-network.json` |
 | `IPFIRE_API_ADMIN_SOCKET` | `/run/ipfire-api-v2-admin/control.sock` |
 
-## Development Roadmap
+## Entwicklungsplan
 
-### Phase 1 — Project Foundation
+### Phase 1 – Projektgrundlagen
 
-- [x] Create the GitHub repository.
-- [x] Create the `develop` branch.
-- [x] Define the initial architecture.
-- [x] Create the project directory structure.
-- [x] Check Perl and TLS dependencies on IPFire Core 205.
-- [x] Create the initial `Config.pm` module.
-- [x] Create the initial `Server.pm` skeleton.
-- [x] Implement `ipfire-api-daemon.pl`.
-- [x] Verify Perl syntax and module loading.
-- [x] Confirm usable TLS certificate and private key paths.
-- [x] Implement configurable listening address and port.
+- [x] GitHub-Repository erstellen.
+- [x] Branch `develop` anlegen.
+- [x] Erste Architektur festlegen.
+- [x] Projektverzeichnisse anlegen.
+- [x] Perl- und TLS-Abhängigkeiten auf IPFire Core 205 prüfen.
+- [x] Eine erste Version von `Config.pm` erstellen.
+- [x] Grundgerüst von `Server.pm` erstellen.
+- [x] `ipfire-api-daemon.pl` implementieren.
+- [x] Perl-Syntax und das Laden der Module prüfen.
+- [x] Verwendbare Pfade zum TLS-Zertifikat und zum privaten Schlüssel bestätigen.
+- [x] Konfigurierbare Adresse und konfigurierbaren Port für den Listener einbauen.
 
-### Phase 2 — TLS Server
+### Phase 2 – TLS-Server
 
-- [x] Implement the TLS listener.
-- [x] Accept incoming client connections.
-- [x] Implement connection timeouts and error handling.
-- [x] Verify TLS handshake timeout and successful handling of the next client on IPFire Core Update 205.
-- [x] Use non-blocking TLS operations with `IO::Select`.
-- [x] Support multiple simultaneous clients and verify them over TLS on Linux loopback.
-- [x] Verify multiple simultaneous clients on IPFire Core Update 205.
-- [x] Implement clean startup and shutdown.
-- [x] Verify startup, SIGTERM shutdown, client disconnect and port reuse on IPFire Core Update 205.
-- [x] Verify a TLS 1.3 handshake on IPFire over loopback.
+- [x] TLS-Listener implementieren.
+- [x] Eingehende Client-Verbindungen annehmen.
+- [x] Verbindungszeitlimits und Fehlerbehandlung implementieren.
+- [x] Auf IPFire Core Update 205 prüfen, dass ein TLS-Handshake abläuft und der nächste Client erfolgreich bedient wird.
+- [x] Nicht blockierende TLS-Operationen mit `IO::Select` verwenden.
+- [x] Mehrere gleichzeitige Clients unterstützen und über TLS auf Linux-Loopback prüfen.
+- [x] Mehrere gleichzeitige Clients auf IPFire Core Update 205 prüfen.
+- [x] Geordneten Start und geordnetes Beenden implementieren.
+- [x] Start, Beenden mit `SIGTERM`, Trennen der Clients und Wiederverwendung des Ports auf IPFire Core Update 205 prüfen.
+- [x] Einen TLS-1.3-Handshake über Loopback auf IPFire prüfen.
 
-### Phase 3 — WebSocket Protocol
+### Phase 3 – WebSocket-Protokoll
 
-- [x] Implement the HTTP WebSocket upgrade handshake.
-- [x] Validate the `Sec-WebSocket-Key` header.
-- [x] Generate the `Sec-WebSocket-Accept` response.
-- [x] Verify the HTTP upgrade over TLS on IPFire.
-- [x] Parse client frames and encode server control frames.
-- [x] Support client masking and fragmented messages.
-- [x] Implement Ping/Pong frames.
-- [x] Implement Close frames and connection cleanup.
-- [x] Enforce message size limits and protocol validation.
-- [x] Verify Ping/Pong and Close over TLS on IPFire.
-- [x] Verify the WebSocket connection and both JSON methods with `wscat` on Debian 13 over local TLS.
+- [x] HTTP-Handshake für das WebSocket-Upgrade implementieren.
+- [x] Header `Sec-WebSocket-Key` validieren.
+- [x] Antwortheader `Sec-WebSocket-Accept` erzeugen.
+- [x] HTTP-Upgrade über TLS auf IPFire prüfen.
+- [x] Client-Frames auswerten und Steuerframes des Servers kodieren.
+- [x] Maskierung durch den Client und fragmentierte Nachrichten unterstützen.
+- [x] Ping-/Pong-Frames implementieren.
+- [x] Close-Frames und das Aufräumen von Verbindungen implementieren.
+- [x] Nachrichtengrößen begrenzen und das Protokoll validieren.
+- [x] Ping/Pong und Close über TLS auf IPFire prüfen.
+- [x] WebSocket-Verbindung und beide JSON-Methoden mit `wscat` auf Debian 13 über lokales TLS prüfen.
 
-### Phase 4 — JSON API Protocol
+### Phase 4 – JSON-API-Protokoll
 
-- [x] Define a consistent JSON message format.
-- [x] Implement request and response identifiers.
-- [x] Implement structured error responses.
-- [x] Add a basic `system.ping` request.
-- [x] Verify `system.ping` and its response ID over TLS on IPFire.
-- [x] Add an initial read-only `system.info` request.
-- [x] Verify `system.info` over TLS on IPFire Core Update 205.
-- [x] Dispatch requests by method name.
-- [x] Add automated protocol tests.
+- [x] Einheitliches JSON-Nachrichtenformat festlegen.
+- [x] IDs für Anfragen und Antworten implementieren.
+- [x] Strukturierte Fehlerantworten implementieren.
+- [x] Eine einfache Anfrage `system.ping` ergänzen.
+- [x] `system.ping` und die Antwort-ID über TLS auf IPFire prüfen.
+- [x] Eine erste lesende Anfrage `system.info` ergänzen.
+- [x] `system.info` über TLS auf IPFire Core Update 205 prüfen.
+- [x] Anfragen anhand des Methodennamens an die zuständige Funktion weiterleiten.
+- [x] Automatisierte Protokolltests ergänzen.
 
-### Phase 5 — Authentication and Security
+### Phase 5 – Authentifizierung und Sicherheit
 
-- [x] Require an individual bearer token for each client.
-- [x] Define a read-only monitoring role and check its permissions for each request.
-- [x] Add local commands to create, list and revoke client access.
-- [x] Verify client authentication and revocation on IPFire Core Update 205.
-- [x] Restrict the listener to a specific address and apply a client network allowlist before TLS.
-- [x] Verify on IPFire Core Update 205 that the allowlist admits an approved loopback address and closes an unlisted connection before TLS.
-- [x] Limit simultaneous connections and rate-limit API requests per authenticated client across all its connections.
-- [x] Verify on IPFire Core Update 205 that connections using the same token share the request limit, other tokens remain unaffected and requests succeed again after refill.
-- [x] Review API v2 input validation and error handling. Test malformed upgrades, method failures and network form validation.
-- [x] Verify on IPFire Core Update 205 that the management page saves the GREEN selection and the API continues to listen on the GREEN address.
-- [x] Review API v2 logging and verify that daemon logs omit tokens and token digests.
-- [x] Require TLS 1.2 or newer and test certificate trust and hostname verification.
-- [x] Verify on IPFire Core Update 205 that TLS 1.2 and 1.3 work, TLS 1.1 is rejected, the client rejects untrusted or mismatched test certificates, and the daemon log omits test tokens and their digests.
+- [x] Für jeden Client einen eigenen Bearer-Token verlangen.
+- [x] Eine Monitoring-Rolle mit Lesezugriff definieren und bei jeder Anfrage ihre Berechtigungen prüfen.
+- [x] Lokale Befehle zum Anlegen, Auflisten und Widerrufen von Client-Zugängen ergänzen.
+- [x] Client-Authentifizierung und Widerruf auf IPFire Core Update 205 prüfen.
+- [x] Den Listener auf eine konkrete Adresse beschränken und die Liste erlaubter Client-Netze vor TLS prüfen.
+- [x] Auf IPFire Core Update 205 prüfen, dass die Netzliste eine freigegebene Loopback-Adresse zulässt und Verbindungen aus anderen Netzen vor TLS schließt.
+- [x] Gleichzeitige Verbindungen begrenzen und API-Anfragen je authentifiziertem Client über alle seine Verbindungen hinweg drosseln.
+- [x] Auf IPFire Core Update 205 prüfen, dass Verbindungen mit demselben Token das Anfragelimit teilen, andere Tokens davon unabhängig sind und Anfragen nach Wiederauffüllen des Kontingents wieder erfolgreich sind.
+- [x] Eingabevalidierung und Fehlerbehandlung der API v2 prüfen. Fehlerhafte Upgrades, Methodenfehler und die Validierung des Netzwerkformulars testen.
+- [x] Auf IPFire Core Update 205 prüfen, dass die Verwaltungsseite die GREEN-Auswahl speichert und die API weiterhin auf der GREEN-Adresse lauscht.
+- [x] Die API-v2-Protokollierung prüfen und bestätigen, dass der Daemon keine Tokens oder Token-Hashes protokolliert.
+- [x] Mindestens TLS 1.2 verlangen sowie Zertifikatsvertrauen und Hostnamenprüfung testen.
+- [x] Auf IPFire Core Update 205 prüfen, dass TLS 1.2 und 1.3 funktionieren, TLS 1.1 abgewiesen wird, der Client nicht vertrauenswürdige Testzertifikate und solche mit unpassendem Namen ablehnt und das Daemon-Protokoll keine Test-Tokens oder deren Hashes enthält.
 
-### Phase 6 — Monitoring and Events
+### Phase 6 – Monitoring und Ereignisse
 
-- [x] Implement client subscriptions to `system.info`.
-- [x] Define event message formats.
-- [x] Implement server-initiated notifications.
-- [x] Verify on IPFire that a subscriber receives `system.info` and stops receiving events after unsubscribe.
-- [x] Verify that the graphical Java client subscribes to `system.info` over WSS and displays periodic events from IPFire Core Update 205.
-- [x] Add RED interface status notifications with an initial snapshot and change detection.
-- [x] Verify the initial RED status and simulated status changes on IPFire.
-- [x] Clear subscriptions when their WebSocket connection closes.
-- [x] Verify on IPFire that the Java GUI reconnects and restores the selected subscriptions.
-- [x] Verify the PEM file filter in the Java GUI certificate dialog.
-- [ ] Evaluate MQTT as a possible future event interface.
+- [x] Client-Abos für `system.info` implementieren.
+- [x] Nachrichtenformate für Ereignisse festlegen.
+- [x] Vom Server ausgelöste Benachrichtigungen implementieren.
+- [x] Auf IPFire prüfen, dass ein Client `system.info` empfängt und nach dem Abbestellen keine weiteren Ereignisse erhält.
+- [x] Prüfen, dass der grafische Java-Client `system.info` über WSS abonniert und regelmäßige Ereignisse von IPFire Core Update 205 anzeigt.
+- [x] Benachrichtigungen zum Zustand der RED-Schnittstelle mit Anfangszustand und Änderungserkennung ergänzen.
+- [x] Auf IPFire den anfänglichen RED-Status und simulierte Statuswechsel prüfen.
+- [x] Abos beim Schließen der zugehörigen WebSocket-Verbindung entfernen.
+- [x] Auf IPFire prüfen, dass sich der grafische Java-Client erneut verbindet und die ausgewählten Abos wiederherstellt.
+- [x] Den PEM-Dateifilter im Zertifikatsdialog des grafischen Java-Clients prüfen.
+- [ ] MQTT als mögliche künftige Schnittstelle für Ereignisse bewerten.
 
-### Phase 7 — IPFire Integration
+### Phase 7 – IPFire-Integration
 
-#### 7.1 Define the API v2 feature scope
+#### 7.1 Funktionsumfang der API v2 festlegen
 
-- [ ] Inventory the read-only functions and management operations available through API v1 (`api.cgi`) and identify the consumers that use them.
-- [ ] Decide which v1 functions are required in v2, which can follow later, and which need a replacement. Record the v2 method or event, required permission and acceptance test for each feature.
-- [ ] Prioritize new v2 capabilities separately, using client needs and community feedback to define the scope of each release.
+- [ ] Die lesenden Funktionen und Verwaltungsoperationen von API v1 (`api.cgi`) erfassen und ermitteln, welche Anwendungen sie verwenden.
+- [ ] Festlegen, welche v1-Funktionen in v2 benötigt werden, welche später folgen können und welche einen Ersatz brauchen. Pro Funktion die v2-Methode oder das Ereignis, die erforderliche Berechtigung und den Abnahmetest festhalten.
+- [ ] Neue v2-Funktionen separat priorisieren. Den Umfang jeder Veröffentlichung anhand der Anforderungen der Clients und der Rückmeldungen aus der Community festlegen.
 
-#### 7.2 Migrate API v1 monitoring to v2
+#### 7.2 Monitoring von API v1 auf v2 übertragen
 
-- [ ] Identify reusable IPFire system interfaces and functions.
-- [ ] Implement the required read-only v2 methods and events for system information, RED connection status, traffic, network, DHCP leases, services, add-ons and update status. Build on the existing `system.info` and `red.status` events.
-- [ ] Compare the v2 data with API v1 on IPFire and verify that it covers the agreed monitoring scope and the data HA-IPFire needs.
+- [ ] Wiederverwendbare IPFire-Systemschnittstellen und Funktionen ermitteln.
+- [ ] Die benötigten lesenden v2-Methoden und Ereignisse für Systeminformationen, RED-Verbindungsstatus, Datenverkehr, Netzwerk, DHCP-Leases, Dienste, Add-ons und Update-Status implementieren. Auf den bestehenden Ereignissen `system.info` und `red.status` aufbauen.
+- [ ] Die v2-Daten auf IPFire mit API v1 vergleichen und prüfen, ob sie den vereinbarten Monitoring-Umfang und den Datenbedarf von HA-IPFire abdecken.
 
-#### 7.3 Extend user and client access management
+#### 7.3 Benutzer- und Clientverwaltung erweitern
 
-- [ ] Define which permissions users and API clients need for monitoring and management, starting from the existing read-only monitoring role.
-- [ ] Extend the management page to assign roles and manage client credentials, including token rotation and revocation.
-- [ ] Test that each role can perform its permitted operations and is denied the others. Verify that existing monitoring clients retain their read-only access.
+- [ ] Ausgehend von der vorhandenen Monitoring-Rolle mit Lesezugriff festlegen, welche Rechte Benutzer und API-Clients für Monitoring und Verwaltung benötigen.
+- [ ] Die Verwaltungsseite um Rollenzuweisung und Verwaltung der Client-Zugangsdaten erweitern, einschließlich Austausch und Widerruf von Tokens.
+- [ ] Prüfen, dass jede Rolle ihre erlaubten Operationen ausführen kann und die übrigen abgewiesen werden. Sicherstellen, dass bestehende Monitoring-Clients ihren Lesezugriff behalten.
 
-#### 7.4 Migrate approved API v1 management operations
+#### 7.4 Freigegebene Verwaltungsoperationen aus API v1 übertragen
 
-- [ ] Decide the v2 treatment of the four v1 operations: connect RED, disconnect RED, upgrade IPFire and reboot IPFire.
-- [ ] After the permission model is in place, implement the operations approved in the feature scope. Define validation, permission checks, and how clients get confirmation or failure status.
-- [ ] Verify the approved operations on IPFire before enabling them for clients.
+- [ ] Festlegen, wie v2 die vier v1-Operationen behandelt: RED verbinden, RED trennen, IPFire aktualisieren und IPFire neu starten.
+- [ ] Nach Einführung des Berechtigungsmodells die im Funktionsumfang freigegebenen Operationen implementieren. Validierung, Rechteprüfung und die Rückmeldung von Erfolg oder Fehler an Clients festlegen.
+- [ ] Freigegebene Operationen auf IPFire prüfen, bevor Clients sie verwenden können.
 
-#### 7.5 Install and operate API v2 on IPFire
+#### 7.5 API v2 auf IPFire installieren und betreiben
 
-- [x] Add a SysV init script and document boot and shutdown integration.
-- [x] Verify that both services start after reboot on IPFire Core Update 205, the API listens on the saved GREEN address and the management page reaches the administration service.
-- [x] Add an API v2 management interface in `api.cgi` for client access and allowed networks.
-- [x] Add a Services menu entry and separate API daemon runtime and autostart controls.
-- [x] Verify that the management page loads in the native IPFire WebGUI.
-- [x] Verify that HA-IPFire still receives the monitoring data it needs from `api.cgi`.
-- [x] Verify that creating a client in the IPFire WebGUI displays its token.
-- [x] Verify that deleting a client through the IPFire WebGUI removes it from the client list.
-- [x] Verify automatic application of network settings saved through the WebGUI on IPFire.
-- [ ] Document installation and configuration.
+- [x] Ein SysV-Init-Skript ergänzen und seine Einbindung in Start und Herunterfahren dokumentieren.
+- [x] Auf IPFire Core Update 205 prüfen, dass beide Dienste nach einem Neustart anlaufen, die API auf der gespeicherten GREEN-Adresse lauscht und die Verwaltungsseite den Verwaltungsdienst erreicht.
+- [x] In `api.cgi` eine API-v2-Verwaltungsoberfläche für Client-Zugänge und erlaubte Netze ergänzen.
+- [x] Einen Menüeintrag unter Dienste und getrennte Bedienelemente für den laufenden API-Daemon und seinen Autostart hinzufügen.
+- [x] Prüfen, dass sich die Verwaltungsseite in der IPFire-WebGUI öffnen lässt.
+- [x] Prüfen, dass HA-IPFire die benötigten Monitoring-Daten weiterhin über `api.cgi` erhält.
+- [x] Prüfen, dass die IPFire-WebGUI beim Anlegen eines Clients dessen Token anzeigt.
+- [x] Prüfen, dass beim Löschen eines Clients über die IPFire-WebGUI dessen Eintrag aus der Client-Liste verschwindet.
+- [x] Auf IPFire prüfen, dass über die WebGUI gespeicherte Netzwerkeinstellungen automatisch wirksam werden.
+- [ ] Installation und Konfiguration dokumentieren.
 
-### Phase 8 — Future Compatibility
+### Phase 8 – Künftige Kompatibilität
 
-- [ ] Verify with HA-IPFire that the migrated API v2 monitoring functions cover the required data.
-- [ ] Add connection checks and fallbacks to HA-IPFire in the order below.
-- [ ] Expand the API based on testing and community feedback.
+- [ ] Mit HA-IPFire prüfen, ob die nach API v2 übernommenen Monitoring-Funktionen alle benötigten Daten liefern.
+- [ ] Verbindungsprüfungen und Ausweichmöglichkeiten in der folgenden Reihenfolge in HA-IPFire ergänzen.
+- [ ] Die API anhand von Tests und Rückmeldungen aus der Community erweitern.
 
-| Priority | Interface | When HA-IPFire uses it |
+| Priorität | Schnittstelle | Wann HA-IPFire sie verwendet |
 |---|---|---|
-| Primary | API v2 | When HA-IPFire can connect to API v2 and use it for monitoring |
-| First fallback | `api.cgi` | When API v2 is unavailable or unusable and `api.cgi` works |
-| Second fallback | `speed.cgi` | When neither API v2 nor `api.cgi` is usable. This provides basic RED interface traffic monitoring. |
+| Bevorzugt | API v2 | Wenn sich HA-IPFire mit API v2 verbinden und sie für das Monitoring verwenden kann |
+| Erste Ausweichmöglichkeit | `api.cgi` | Wenn API v2 nicht verfügbar oder nicht nutzbar ist und `api.cgi` funktioniert |
+| Zweite Ausweichmöglichkeit | `speed.cgi` | Wenn weder `api.cgi` noch API v2 nutzbar sind. Damit lässt sich der Datenverkehr auf der RED-Schnittstelle grundlegend überwachen. |
 
-## Development Notes
+## Hinweise zur Entwicklung
 
-API v2 is intended to become the primary interface for HA-IPFire and other clients once it provides
-the required monitoring capabilities. `api.cgi` remains a compatibility fallback for existing
-installations and receives necessary maintenance and bug fixes.
+API v2 soll zur primären Schnittstelle für HA-IPFire und andere Clients werden, sobald sie die erforderlichen Monitoring-Funktionen bereitstellt. `api.cgi` bleibt als Ausweichmöglichkeit für bestehende Installationen verfügbar und erhält die nötige Wartung und Fehlerkorrekturen.
 
-The API v2 is being developed incrementally. Features, interfaces and implementation details may change during development.
+API v2 entsteht schrittweise. Funktionen, Schnittstellen und Implementierungsdetails können sich während der Entwicklung ändern.
 
-The first milestone is a minimal, TLS-protected WebSocket server capable of accepting a connection and responding to a simple JSON request.
+Der erste Meilenstein ist ein minimaler TLS-geschützter WebSocket-Server, der eine Verbindung annimmt und eine einfache JSON-Anfrage beantwortet.
 
-## License
+## Lizenz
 
 GPL-3.0
