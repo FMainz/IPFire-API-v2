@@ -282,11 +282,11 @@ From a second shell on the same IPFire host, connect to the listener:
 
 ```sh
 openssl s_client -connect 127.0.0.1:8444 \
-  -servername ipfire.mainz -verify_hostname ipfire.mainz \
+  -servername ipfire.local -verify_hostname ipfire.local \
   -CAfile /etc/httpd/server.crt -verify_return_error </dev/null
 ```
 
-Use your IPFire certificate name in place of `ipfire.mainz`.
+Use your IPFire certificate name in place of `ipfire.local`.
 The daemon allows up to five seconds for the TLS handshake and another five seconds for the WebSocket upgrade.
 Stop it with `Ctrl+C` or send `SIGTERM` to the daemon process. The daemon closes its listener and
 client connections, prints `IPFire API v2 stopped`, and exits successfully.
@@ -412,7 +412,7 @@ Open the graphical client from a desktop session:
 java -jar build/ipfire-events.jar
 ```
 
-Enter the WebSocket URL, for example `wss://ipfire.mainz:8444/`, and paste the
+Enter the WebSocket URL, for example `wss://ipfire.local:8444/`, and paste the
 token into the masked token field. If IPFire uses a self-signed certificate,
 select a trusted copy of its public certificate in the certificate field.
 The certificate dialog shows PEM files by default. Choose **All files** to
@@ -431,7 +431,7 @@ error stops the retry cycle so the connection settings can be corrected.
 Passing the URL when launching the JAR selects the command-line mode:
 
 ```sh
-java -jar build/ipfire-events.jar wss://ipfire.mainz:8444/ ipfire-public.pem
+java -jar build/ipfire-events.jar wss://ipfire.local:8444/ ipfire-public.pem
 ```
 
 Use a trusted copy of the public server certificate for a self-signed IPFire
@@ -448,13 +448,13 @@ this from the repository checkout and enter a valid client token:
 ```sh
 read -rs -p 'Client token: ' token
 printf '\n'
-printf '%s\n' "$token" | perl -Ilib t/ipfire-smoke.pl ipfire.mainz
+printf '%s\n' "$token" | perl -Ilib t/ipfire-smoke.pl ipfire.local
 unset token
 ```
 
-Replace `ipfire.mainz` with the name on your IPFire certificate.
+Replace `ipfire.local` with the name on your IPFire certificate.
 To test the running service on GREEN, pass its listener IP as the second argument,
-for example `perl -Ilib t/ipfire-smoke.pl ipfire.mainz 192.168.5.254`.
+for example `perl -Ilib t/ipfire-smoke.pl ipfire.local 192.168.0.254`.
 If a CA issued the certificate, pass the CA certificate path as the third argument.
 Expect the verified TLS version, `Upgrade OK`, `Pong OK`, `system.ping OK`, the system information in JSON,
 `system.info OK` and `Close OK`.
