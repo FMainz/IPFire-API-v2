@@ -9,9 +9,15 @@ use Fcntl qw(:DEFAULT :flock :mode);
 use File::Temp;
 use POSIX qw(setsid);
 use Time::Local qw(timegm);
-use lib '/usr/local/lib/ipfire-api-v2';
 
 if (($ENV{'QUERY_STRING'} // '') =~ /\Aview=admin(?:&submit=1)?\z/) {
+    # Map the installed API directory to the Perl namespace used in the checkout.
+    local @INC = (sub {
+        my (undef, $module) = @_;
+        return unless $module =~ m{\AIPFire/(API/[A-Za-z0-9_]+\.pm)\z};
+        open my $file, '<', "/usr/local/lib/$1" or return;
+        return $file;
+    }, @INC);
     require IPFire::API::AdminPage;
     IPFire::API::AdminPage::run();
     exit 0;

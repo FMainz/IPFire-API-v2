@@ -3,7 +3,7 @@
 Ein modularer, Perl-basierter API-Dienst für IPFire, der sichere Fernverwaltung und Monitoring über WebSocket mit TLS ermöglicht.
 Diese Version wurde mit ChatGPT erstellt. Sie basiert auf meiner IPFire API.
 
-> **Entwicklungsstand:** Frühe Entwicklungsphase. Die API ist noch nicht funktionsfähig.
+> **Entwicklungsstand:** Frühe Entwicklungsphase. Die API ist noch nicht voll funktionsfähig.
 
 ## Inhaltsverzeichnis
 
@@ -35,11 +35,13 @@ Diese Version wurde mit ChatGPT erstellt. Sie basiert auf meiner IPFire API.
 
 ## Projektziele
 
-Das Ziel ist eine modulare API für IPFire, die eine dauerhafte Kommunikation in beide Richtungen zwischen IPFire und externen Clients ermöglicht.
+Die Zielsetzung dieses Projekts ist eine modulare API für IPFire, sie soll eine dauerhafte Zwei-Wege-Kommunikation zwischen IPFire und externen Clients ermöglichen.
 
-Die Implementierung soll folgende Anforderungen erfüllen.
+Folgende Anforderungen sollen mit dieser Imlementierung erfüllt werden:
 
-- Nach Möglichkeit Perl und bereits auf IPFire vorhandene Module verwenden.
+- Um keinen zusätzlichen Interpreter auf IPFire installieren zu müssen, wird Perl als Programmiersprache benutzt,
+- Da IPFire unterschiedliche Prozessorarchitekturen unterstützt, werden keine Binary-Blobs erstellt
+- Bereits auf IPFire vorhandene Module sind zu verwenden.
 - Zusätzliche Laufzeitabhängigkeiten vermeiden.
 - Sichere WebSocket-Verbindungen (WSS) bereitstellen.
 - Mehrere Clients gleichzeitig unterstützen.
@@ -55,7 +57,7 @@ Die API soll als eigenständiger Perl-Daemon laufen.
 
 Als erstes Kommunikationsprotokoll ist WebSocket über TLS (WSS) auf TCP-Port `8444` vorgesehen.
 
-Die geplante Projektstruktur sieht wie folgt aus.
+Projektstruktur
 
 ```text
 IPFire-API-v2/
@@ -65,6 +67,19 @@ IPFire-API-v2/
 │   └── ipfire-api-daemon.pl
 ├── cgi-bin/
 │   └── api.cgi
+├── deploy/
+│   └── ipfire/
+│       ├── EX-ipfire-api-v2.menu
+│       └── ipfire-api-v2
+├── docs/
+│   └── images/
+│       └── ipfire-api-logo-v2.svg
+├── examples/
+│   └── java/
+│       ├── .gitignore
+│       ├── ipfire-events.jar
+│       ├── IPFireEvents.java
+│       └── IPFireEventsWindow.java
 ├── lib/
 │   └── IPFire/
 │       └── API/
@@ -77,13 +92,20 @@ IPFire-API-v2/
 │           ├── NetworkPolicy.pm
 │           ├── NetworkSettings.pm
 │           ├── Protocol.pm
+│           ├── RequestLimit.pm
 │           ├── Server.pm
 │           ├── System.pm
 │           └── WebSocket.pm
-├── t/
+├── t/ – Automatisierte Tests und Skript für den API-Kurztest
+│   ├── admin-form.t
+│   ├── ipfire-smoke.pl
+│   ├── network-policy.t
+│   ├── server-concurrency.t
+│   └── websocket-frames.t
 ├── .gitignore
 ├── LICENSE
-└── README.md
+├── README.md
+└── README_de.md
 ```
 
 ### Aufgaben der Module
@@ -132,9 +154,9 @@ Nach der ersten Einschätzung lässt sich ein WebSocket-Server ohne zusätzliche
 Die folgenden Befehle im Projektverzeichnis mit demselben lokalen Benutzerkonto ausführen, unter dem der Daemon läuft.
 
 ```sh
-perl bin/ipfire-api-clients.pl add home-assistant
+perl bin/ipfire-api-clients.pl add testuser
 perl bin/ipfire-api-clients.pl list
-perl bin/ipfire-api-clients.pl revoke home-assistant
+perl bin/ipfire-api-clients.pl revoke testuser
 ```
 
 `add` legt einen Client mit der Rolle `monitoring` an und gibt dessen Token einmalig aus. Den Token im Client hinterlegen. Das Werkzeug speichert einen SHA-256-Hash im privaten Client-Verzeichnis des Daemons. Für Tests einen eigenen Namen wie `smoke-test` verwenden.
@@ -143,18 +165,18 @@ Clients senden beim WebSocket-Upgrade über TLS den Header `Authorization: Beare
 
 ### Verbindungs- und Anfragelimits
 
-Der API-Daemon akzeptiert über alle Listener hinweg bis zu 32 gleichzeitige Verbindungen. Dazu zählen auch Verbindungen während des TLS-Handshakes oder des WebSocket-Upgrades. Alle Verbindungen, die denselben authentifizierten Token verwenden, teilen sich ein Anfragekontingent. Ein Client kann bis zu 10 Anfragen unmittelbar hintereinander senden. Das Kontingent füllt sich um 2 Anfragen pro Sekunde wieder auf. Ist es ausgeschöpft, beantwortet der Daemon Anfragen mit gültiger ID mit `rate_limited`. Die WebSocket-Verbindung bleibt offen, damit der Client es später erneut versuchen kann. WebSocket-Steuerframes verbrauchen kein Kontingent.
+Der API-Daemon akzeptiert bis zu 32 gleichzeitige Verbindungen. Dazu zählen auch Verbindungen während des TLS-Handshakes oder des WebSocket-Upgrades. Alle Verbindungen, die denselben authentifizierten Token verwenden, teilen sich ein Anfragekontingent. Ein Client kann bis zu 10 Anfragen unmittelbar hintereinander senden. Das Kontingent füllt sich um 2 Anfragen pro Sekunde wieder auf. Ist es ausgeschöpft, beantwortet der Daemon Anfragen mit gültiger ID mit `rate_limited`. Die WebSocket-Verbindung bleibt offen, damit der Client es später erneut versuchen kann. WebSocket-Steuerframes verbrauchen kein Kontingent.
 
 ### Erlaubte Client-Netze konfigurieren
 
-Ohne gespeicherte Einstellungen oder ausdrückliche Vorgabe lauscht der Daemon auf `127.0.0.1`. Für eine manuelle Konfiguration `IPFIRE_API_HOST` auf eine bestimmte lokale IPFire-Adresse setzen und in `IPFIRE_API_ALLOWED_NETWORKS` die IPv4- oder IPv6-Client-Netze als kommaseparierte Liste in CIDR-Schreibweise angeben. Die Dokumentationsadressen im Beispiel durch die eigene IPFire-Adresse und das freizugebende Client-Netz ersetzen.
+Ohne gespeicherte Einstellungen oder ausdrückliche Vorgabe lauscht der Daemon auf `127.0.0.1`. Für eine manuelle Konfiguration `IPFIRE_API_HOST` auf eine bestimmte lokale IPFire-Adresse setzen und in `IPFIRE_API_ALLOWED_NETWORKS` die IPv4-Client-Netze als kommaseparierte Liste in CIDR-Schreibweise angeben. Die Adressen im Beispiel durch die eigene IPFire-Adresse und das freizugebende Client-Netz ersetzen.
 
 ```sh
-IPFIRE_API_HOST=192.0.2.1 IPFIRE_API_ALLOWED_NETWORKS=192.0.2.0/24 \
+IPFIRE_API_HOST=192.168.2.1 IPFIRE_API_ALLOWED_NETWORKS=192.168.2.0/24 \
   perl bin/ipfire-api-daemon.pl
 ```
 
-Der Daemon prüft die Quell-IP-Adresse jeder TCP-Verbindung vor dem TLS-Handshake. Auch Clients aus erlaubten Netzen benötigen einen gültigen Token. Eine explizite Netzwerkliste ersetzt die Loopback-Standardwerte. Bei einem Loopback-Listener mit eigener Liste `127.0.0.0/8` aufnehmen, wenn lokale IPv4-Clients zugelassen werden sollen. Der Listener lauscht auf einer konkreten IP-Adresse. Außerhalb von Loopback ist eine explizite Netzwerkliste erforderlich. Änderungen an diesen Umgebungsvariablen gelten ab dem Start des Daemons.
+Der Daemon prüft die Quell-IP-Adresse jeder TCP-Verbindung vor dem TLS-Handshake. Auch Clients aus erlaubten Netzen benötigen einen gültigen Token. Eine explizite Netzwerkliste ersetzt die Loopback-Standardwerte. Bei einem Loopback-Listener mit eigener Liste `127.0.0.0/8` aufnehmen, wenn lokale IPv4-Clients zugelassen werden sollen. Der Listener lauscht auf einer konkreten IP-Adresse. Außerhalb von Loopback ist eine explizite Netzwerkliste erforderlich. Änderungen an diesen Umgebungsvariablen gelten ab dem Start des Daemons. Vor der Aktualisierung manuell konfigurierte Listener-Adressen und CIDR-Listen auf IPv4-Einträge umstellen.
 
 ### API-Verwaltungsseite verwenden
 
@@ -168,7 +190,17 @@ install -o root -g root -m 0644 deploy/ipfire/EX-ipfire-api-v2.menu /var/ipfire/
 
 Für die Bedienelemente unter **API daemon** das Init-Skript und die Startlinks wie unten beschrieben installieren. **Start** und **Stop** ändern den aktuellen Betriebszustand. **Start at system boot** steuert unabhängig davon den nächsten Systemstart. Der Verwaltungsdienst läuft weiter, sodass sich die API auch im gestoppten Zustand starten und konfigurieren lässt.
 
-Auf einem IPFire-Testsystem die Perl-Module so installieren, dass `/usr/local/lib/ipfire-api-v2/IPFire/API/AdminPage.pm` vorhanden ist. Eine bestehende Datei `/srv/web/ipfire/cgi-bin/api.cgi` vor der Installation der neuen CGI-Datei mit den Rechten `0755` sichern. Den lokalen Verwaltungsdienst aus dem Projektverzeichnis starten und als Argument den Apache-Benutzer aus `/etc/httpd/conf/uid.conf` übergeben.
+Eine vorhandene Datei `/srv/web/ipfire/cgi-bin/api.cgi` sichern. Vor der Installation der aktualisierten CGI-Datei die Perl-Module der WebGUI unter `/usr/local/lib/API/` installieren. Die folgenden Befehle als `root` im Projektverzeichnis ausführen.
+
+```sh
+install -d -o root -g root -m 0755 /usr/local/lib/API
+install -o root -g root -m 0644 \
+  lib/IPFire/API/AdminPage.pm lib/IPFire/API/AdminProtocol.pm lib/IPFire/API/Config.pm \
+  /usr/local/lib/API/
+install -o root -g root -m 0755 cgi-bin/api.cgi /srv/web/ipfire/cgi-bin/api.cgi
+```
+
+Den lokalen Verwaltungsdienst aus dem Projektverzeichnis starten und als Argument den Apache-Benutzer aus `/etc/httpd/conf/uid.conf` übergeben.
 
 ```sh
 perl bin/ipfire-api-admin.pl nobody
@@ -209,7 +241,7 @@ Mit `/etc/rc.d/init.d/ipfire-api-v2 stop`, `restart` oder `status` lassen sich b
 
 ### TLS-Listener auf IPFire testen
 
-Die API benötigt mindestens TLS 1.2. Sie verwendet standardmäßig das Zertifikat und den privaten Schlüssel der IPFire-WebGUI. Clients müssen das Zertifikat gegen eine vertrauenswürdige Zertifizierungsstelle und den erwarteten Servernamen prüfen. Bei einem selbstsignierten IPFire-Zertifikat eine vertrauenswürdige Kopie des öffentlichen Zertifikats als CA-Datei verwenden. Der private Schlüssel bleibt auf IPFire. Nur die Dienste, die ihn benötigen, sollen Lesezugriff erhalten. Nach einem Austausch des Zertifikats oder Schlüssels den Daemon neu starten.
+Die API benötigt mindestens TLS 1.2. Sie verwendet standardmäßig das Zertifikat und den privaten Schlüssel der IPFire-WebGUI. Clients müssen das Zertifikat gegen eine vertrauenswürdige Zertifizierungsstelle und den erwarteten Servernamen prüfen. Bei einem selbstsignierten IPFire-Zertifikat ist eine vertrauenswürdige Kopie des öffentlichen Zertifikats als CA-Datei verwenden. Der private Schlüssel bleibt auf IPFire. Nur die Dienste, die ihn benötigen, sollen Lesezugriff erhalten. Nach einem Austausch des Zertifikats oder Schlüssels ist der Daemon neu starten.
 
 Für einen lokalen Test im Projektverzeichnis auf IPFire den Daemon mit expliziten Loopback-Einstellungen starten.
 
@@ -349,7 +381,7 @@ Die vollständige Testsuite auf Entwicklungssystemen mit `prove -l t` ausführen
 | Umgebungsvariable | Standardwert |
 |---|---|
 | `IPFIRE_API_HOST` | `127.0.0.1` |
-| `IPFIRE_API_ALLOWED_NETWORKS` | `127.0.0.0/8,::1/128` für Loopback-Listener |
+| `IPFIRE_API_ALLOWED_NETWORKS` | `127.0.0.0/8` für Loopback-Listener |
 | `IPFIRE_API_PORT` | `8444` |
 | `IPFIRE_API_CERT_FILE` | `/etc/httpd/server.crt` |
 | `IPFIRE_API_KEY_FILE` | `/etc/httpd/server.key` |

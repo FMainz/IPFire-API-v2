@@ -55,7 +55,7 @@ The API will run as a standalone Perl daemon.
 
 The initial communication protocol will be WebSocket over TLS (WSS), using TCP port `8444`.
 
-The planned project structure is:
+Project structure
 
 ```text
 IPFire-API-v2/
@@ -65,6 +65,19 @@ IPFire-API-v2/
 │   └── ipfire-api-daemon.pl
 ├── cgi-bin/
 │   └── api.cgi
+├── deploy/
+│   └── ipfire/
+│       ├── EX-ipfire-api-v2.menu
+│       └── ipfire-api-v2
+├── docs/
+│   └── images/
+│       └── ipfire-api-logo-v2.svg
+├── examples/
+│   └── java/
+│       ├── .gitignore
+│       ├── ipfire-events.jar
+│       ├── IPFireEvents.java
+│       └── IPFireEventsWindow.java
 ├── lib/
 │   └── IPFire/
 │       └── API/
@@ -77,13 +90,20 @@ IPFire-API-v2/
 │           ├── NetworkPolicy.pm
 │           ├── NetworkSettings.pm
 │           ├── Protocol.pm
+│           ├── RequestLimit.pm
 │           ├── Server.pm
 │           ├── System.pm
 │           └── WebSocket.pm
 ├── t/
+│   ├── admin-form.t
+│   ├── ipfire-smoke.pl
+│   ├── network-policy.t
+│   ├── server-concurrency.t
+│   └── websocket-frames.t
 ├── .gitignore
 ├── LICENSE
-└── README.md
+├── README.md
+└── README_de.md
 ```
 
 ### Module Responsibilities
@@ -161,7 +181,7 @@ WebSocket control frames do not consume the request allowance.
 Without saved settings or an explicit override, the daemon listens on `127.0.0.1`.
 For a manual configuration, set
 `IPFIRE_API_HOST` to a specific local IPFire address and set `IPFIRE_API_ALLOWED_NETWORKS`
-to a comma-separated list of IPv4 or IPv6 client networks in CIDR notation.
+to a comma-separated list of IPv4 client networks in CIDR notation.
 For example, replace the documentation addresses below with the IPFire address and the
 client network you want to allow:
 
@@ -175,7 +195,8 @@ Clients in allowed networks still need a valid token. An explicit network list r
 the loopback defaults. Include `127.0.0.0/8` if you use a loopback listener with a custom
 list and want local IPv4 clients to connect. The listener accepts a specific IP address.
 A non-loopback listener requires an explicit network list. Changes to these
-environment variables take effect when the daemon starts.
+environment variables take effect when the daemon starts. Before upgrading,
+update any manually configured listener address or CIDR list to use IPv4 entries.
 
 ### Use the API management page
 
@@ -196,10 +217,20 @@ Install the init script and boot links below to use the **API daemon** controls.
 controls the next boot independently. The administration service stays running
 so you can start the API or edit its settings while it is stopped.
 
-On a test IPFire, install the Perl modules so `/usr/local/lib/ipfire-api-v2/IPFire/API/AdminPage.pm`
-exists. Back up any existing `/srv/web/ipfire/cgi-bin/api.cgi` before installing the new CGI there
-with mode `0755`. Start the local administration service from the project checkout, using the
-Apache user from `/etc/httpd/conf/uid.conf` as its argument:
+Back up any existing `/srv/web/ipfire/cgi-bin/api.cgi`. Install the WebGUI Perl
+modules under `/usr/local/lib/API/` before installing the updated CGI. Run these
+commands as root from the project checkout.
+
+```sh
+install -d -o root -g root -m 0755 /usr/local/lib/API
+install -o root -g root -m 0644 \
+  lib/IPFire/API/AdminPage.pm lib/IPFire/API/AdminProtocol.pm lib/IPFire/API/Config.pm \
+  /usr/local/lib/API/
+install -o root -g root -m 0755 cgi-bin/api.cgi /srv/web/ipfire/cgi-bin/api.cgi
+```
+
+Start the local administration service from the project checkout and pass the
+Apache user from `/etc/httpd/conf/uid.conf` as its argument.
 
 ```sh
 perl bin/ipfire-api-admin.pl nobody
@@ -473,7 +504,7 @@ Run the full test suite on development systems with `prove -l t`.
 | Environment variable | Default |
 |---|---|
 | `IPFIRE_API_HOST` | `127.0.0.1` |
-| `IPFIRE_API_ALLOWED_NETWORKS` | `127.0.0.0/8,::1/128` for loopback listeners |
+| `IPFIRE_API_ALLOWED_NETWORKS` | `127.0.0.0/8` for loopback listeners |
 | `IPFIRE_API_PORT` | `8444` |
 | `IPFIRE_API_CERT_FILE` | `/etc/httpd/server.crt` |
 | `IPFIRE_API_KEY_FILE` | `/etc/httpd/server.key` |
